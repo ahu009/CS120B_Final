@@ -19,10 +19,82 @@ volatile unsigned char TimerFlag = 0; // TimerISR() sets this to 1. C programmer
 unsigned long _avr_timer_M = 1; // Start count from here, down to 0. Default 1 ms.
 unsigned long _avr_timer_cntcurr = 0; // Current internal count of 1ms ticks
 
+
+
+//***********************************************************************//
+//                Analog to Digital Setup Function                       //
+//***********************************************************************//
+
+void ADC_init() {
+	//Changes the resolution from 10 bits to 8 bits
+	//ADMUX |= (1 <<ADLAR);
+	
+	/*Single Conversion Mode */
+	ADCSRA |= (1 << ADEN) | (1 << ADSC);
+	// ADEN: setting this bit enables analog-to-digital conversion.
+	// ADSC: setting this bit starts the first conversion.
+	
+	/**Not used: **/
+	// ADATE: setting this bit enables auto-triggering. Since we are
+	// in Free Running Mode, a new conversion will trigger whenever
+	// the previous conversion completes.
+}
+
+//***********************************************************************//
+//                Analog to Digital Channel Setup Function               //
+//***********************************************************************//
+unsigned short SetADC_Ch(unsigned char channel) { //Refer to Page 255 on Atmega1284 Data Sheet
+	switch (channel) {
+		//Set ADMUX[4:0] to 0000 for ADC0 channel reading
+		
+		case 0:
+		ADCSRA &= ~(1 << ADEN);
+		ADMUX&=0xF0;
+		ADCSRA |= (1 << ADEN) | (1 << ADSC);
+		while(ADCSRA & (1<<ADSC)) {/*do nothing, wait until ADC is Ready*/}
+		break;
+		
+		//Set ADMUX[4:0] to 0001 for ADC1 channel reading
+		case 1:
+		ADCSRA &= ~(1 << ADEN);
+		ADMUX|=0x01;
+		ADCSRA |= (1 << ADEN) | (1 << ADSC);
+		while(ADCSRA & (1<<ADSC)) {/*do nothing*/}
+		break;
+		
+		default:
+		ADCSRA &= ~(1 << ADEN);
+		ADMUX=0;
+		break;
+	}
+	
+	return ADC;
+}
+
+//***********************************************************************//
+//                     JoyStick for X-dir Calibration                    //
+//***********************************************************************//
+unsigned char JoyStickX_ADC(unsigned short joystick){
+	//map 1024 to 0,1,2,3,4...10 [11]
+	unsigned char offsetvalue=3;
+	unsigned short division = (joystick>offsetvalue) ? ((joystick-offsetvalue)/146) : (0);
+	return (division+1);
+}
+
+//***********************************************************************//
+//                     JoyStick for Y-dir Calibration                    //
+//***********************************************************************//
+unsigned char JoyStickY_ADC(unsigned short joystick){
+	//map 1024 to 0,1,2,3,4...6
+	unsigned char offsetvalue=3;
+	unsigned short division = (joystick>offsetvalue) ? ((joystick-offsetvalue)/146) : (0);
+	return (division+1);
+}
+
+
+
 void set_PWM(double frequency) {
-	// Keeps track of the currently set frequency
-	// Will only update the registers when the frequency
-	// changes, plays music uninterrupted.
+
 	static double current_frequency;
 	if (frequency != current_frequency) {
 
@@ -125,8 +197,10 @@ unsigned char ButtonA0;
 unsigned char cnt;
 unsigned char period = 1;
 unsigned char score;
+unsigned char x = 0;
+unsigned char y = 0;
 
-enum States{Init} state;
+enum States{Init, ReadYAnalogInput, ReadXAnalogInput} state;
 
 void ButtonTick()
 {
@@ -138,18 +212,36 @@ void ButtonTick()
 		case Init:
 			state = Init;
 			break;
+		case ReadYAnalogInput:
+			x = JoyStickY_ADC(SetADC_Ch(2));
+			state=ReadXAnalogInput;
+			break;
+		
+		case ReadXAnalogInput:
+			y = JoyStickX_ADC(SetADC_Ch(2));
+			state=ReadYAnalogInput;
+			break;
+		
+		default:
+			break;
 	}
 
 	switch(state)//Actions
 	{
 		case Init:
+			x = SetADC_Ch(0);
+			y = SetADC_Ch(1);
 			LCD_Cursor(1);
 		    LCD_DisplayString(1, string);
 			LCD_Cursor(8);
-			LCD_WriteData('0' + ((score % 1000) / 100));
-			LCD_WriteData('0' + ((score % 100) / 10));
-			LCD_WriteData('0' + ((score % 10)));
-			score++;
+			//LCD_WriteData('0' + ((score % 1000) / 100));
+			//LCD_WriteData('0' + ((score % 100) / 10));
+			//LCD_WriteData('0' + ((score % 10)));
+			LCD_WriteData('0' + x);
+			LCD_Cursor(12);
+			LCD_WriteData('0' + y);
+			//if(x > 5) score++;
+			//if(y > 3) score--;
 			set_PWM(329.63);
 			break;
 	}
@@ -161,23 +253,25 @@ int main(void)
 	DDRB = 0xF0; PORTB = 0x0F;
 	DDRC = 0xFF; PORTC = 0x00; // LCD data lines
 	DDRD = 0xFF; PORTD = 0x00; // LCD control lines
-	DDRA = 0x00; PORTA = 0xFF;
+	DDRA = 0x00; PORTA = 0xFF; //Input Analog
 	
-	TimerSet(1);
+	ADC_init();
+	
+	TimerSet(250);
 	TimerOn();
 	PWM_on();
 
-	// Initializes the LCD display
+
 	LCD_init();
-	// Starting at position 1 on the LCD screen, writes Hello World
+
 	state = Init;
 	while(1)
 	{
-		ButtonA0 = ~PINA & 0x01;
-		ButtonA1 = ~PINA & 0x02;
+		//ButtonA0 = ~PINA & 0x01;
+		//ButtonA1 = ~PINA & 0x02;
 		ButtonTick();
 		
-		while (!TimerFlag);	// Wait 1 sec
+		while (!TimerFlag);
 		TimerFlag = 0;
 	}
 }
