@@ -19,6 +19,46 @@ volatile unsigned char TimerFlag = 0; // TimerISR() sets this to 1. C programmer
 unsigned long _avr_timer_M = 1; // Start count from here, down to 0. Default 1 ms.
 unsigned long _avr_timer_cntcurr = 0; // Current internal count of 1ms ticks
 
+void set_PWM(double frequency) {
+	// Keeps track of the currently set frequency
+	// Will only update the registers when the frequency
+	// changes, plays music uninterrupted.
+	static double current_frequency;
+	if (frequency != current_frequency) {
+
+		if (!frequency) TCCR3B &= 0x08; //stops timer/counter
+		else TCCR3B |= 0x03; // resumes/continues timer/counter
+		
+		// prevents OCR3A from overflowing, using prescaler 64
+		// 0.954 is smallest frequency that will not result in overflow
+		if (frequency < 0.954) OCR3A = 0xFFFF;
+		
+		// prevents OCR3A from underflowing, using prescaler 64
+		else if (frequency > 31250) OCR3A = 0x0000;
+		
+		// set OCR3A based on desired frequency
+		else OCR3A = (short)(8000000 / (128 * frequency)) - 1;
+
+		TCNT3 = 0; // resets counter
+		current_frequency = frequency;
+	}
+}
+
+void PWM_on() {
+	TCCR3A = (1 << COM3A0);
+	// COM3A0: Toggle PB6 on compare match between counter and OCR3A
+	TCCR3B = (1 << WGM32) | (1 << CS31) | (1 << CS30);
+	// WGM32: When counter (TCNT3) matches OCR3A, reset counter
+	// CS31 & CS30: Set a prescaler of 64
+	set_PWM(0);
+}
+
+void PWM_off() {
+	TCCR3A = 0x00;
+	TCCR3B = 0x00;
+}
+
+
 void TimerOn() {
 	// AVR timer/counter controller register TCCR1
 	TCCR1B = 0x0B;// bit3 = 0: CTC mode (clear timer on compare)
@@ -110,6 +150,7 @@ void ButtonTick()
 			LCD_WriteData('0' + ((score % 100) / 10));
 			LCD_WriteData('0' + ((score % 10)));
 			score++;
+			set_PWM(329.63);
 			break;
 	}
 }
@@ -117,12 +158,14 @@ void ButtonTick()
 
 int main(void)
 {
+	DDRB = 0xF0; PORTB = 0x0F;
 	DDRC = 0xFF; PORTC = 0x00; // LCD data lines
 	DDRD = 0xFF; PORTD = 0x00; // LCD control lines
 	DDRA = 0x00; PORTA = 0xFF;
 	
-	TimerSet(250);
+	TimerSet(1);
 	TimerOn();
+	PWM_on();
 
 	// Initializes the LCD display
 	LCD_init();
@@ -133,7 +176,7 @@ int main(void)
 		ButtonA0 = ~PINA & 0x01;
 		ButtonA1 = ~PINA & 0x02;
 		ButtonTick();
-
+		
 		while (!TimerFlag);	// Wait 1 sec
 		TimerFlag = 0;
 	}
