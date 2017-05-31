@@ -24,71 +24,19 @@ unsigned long _avr_timer_cntcurr = 0; // Current internal count of 1ms ticks
 //***********************************************************************//
 //                Analog to Digital Setup Function                       //
 //***********************************************************************//
-
-void ADC_init() {
-	//Changes the resolution from 10 bits to 8 bits
-	//ADMUX |= (1 <<ADLAR);
-	
-	/*Single Conversion Mode */
-	ADCSRA |= (1 << ADEN) | (1 << ADSC);
-	// ADEN: setting this bit enables analog-to-digital conversion.
-	// ADSC: setting this bit starts the first conversion.
-	
-	/**Not used: **/
-	// ADATE: setting this bit enables auto-triggering. Since we are
-	// in Free Running Mode, a new conversion will trigger whenever
-	// the previous conversion completes.
+//http://www.embedds.com/interfacing-analog-joystick-with-avr/
+void InitADC(void)
+{
+	ADMUX|=(1<<REFS0);
+	ADCSRA|=(1<<ADEN)|(1<<ADPS0)|(1<<ADPS1)|(1<<ADPS2); //ENABLE ADC, PRESCALER 128
 }
-
-//***********************************************************************//
-//                Analog to Digital Channel Setup Function               //
-//***********************************************************************//
-unsigned short SetADC_Ch(unsigned char channel) { //Refer to Page 255 on Atmega1284 Data Sheet
-	switch (channel) {
-		//Set ADMUX[4:0] to 0000 for ADC0 channel reading
-		
-		case 0:
-		ADCSRA &= ~(1 << ADEN);
-		ADMUX&=0xF0;
-		ADCSRA |= (1 << ADEN) | (1 << ADSC);
-		while(ADCSRA & (1<<ADSC)) {/*do nothing, wait until ADC is Ready*/}
-		break;
-		
-		//Set ADMUX[4:0] to 0001 for ADC1 channel reading
-		case 1:
-		ADCSRA &= ~(1 << ADEN);
-		ADMUX|=0x01;
-		ADCSRA |= (1 << ADEN) | (1 << ADSC);
-		while(ADCSRA & (1<<ADSC)) {/*do nothing*/}
-		break;
-		
-		default:
-		ADCSRA &= ~(1 << ADEN);
-		ADMUX=0;
-		break;
-	}
-	
-	return ADC;
-}
-
-//***********************************************************************//
-//                     JoyStick for X-dir Calibration                    //
-//***********************************************************************//
-unsigned char JoyStickX_ADC(unsigned short joystick){
-	//map 1024 to 0,1,2,3,4...10 [11]
-	unsigned char offsetvalue=3;
-	unsigned short division = (joystick>offsetvalue) ? ((joystick-offsetvalue)/146) : (0);
-	return (division+1);
-}
-
-//***********************************************************************//
-//                     JoyStick for Y-dir Calibration                    //
-//***********************************************************************//
-unsigned char JoyStickY_ADC(unsigned short joystick){
-	//map 1024 to 0,1,2,3,4...6
-	unsigned char offsetvalue=3;
-	unsigned short division = (joystick>offsetvalue) ? ((joystick-offsetvalue)/146) : (0);
-	return (division+1);
+uint16_t readadc(uint8_t ch)
+{
+	ch&=0b00000111;         //ANDing to limit input to 7
+	ADMUX = (ADMUX & 0xf8)|ch;  //Clear last 3 bits of ADMUX, OR with ch
+	ADCSRA|=(1<<ADSC);        //START CONVERSION
+	while((ADCSRA)&(1<<ADSC));    //WAIT UNTIL CONVERSION IS COMPLETE
+	return(ADC);        //RETURN ADC VALUE
 }
 
 
@@ -197,8 +145,8 @@ unsigned char ButtonA0;
 unsigned char cnt;
 unsigned char period = 1;
 unsigned char score;
-unsigned char x = 0;
-unsigned char y = 0;
+uint16_t  x = 0;
+uint16_t y = 0;
 
 enum States{Init, ReadYAnalogInput, ReadXAnalogInput} state;
 
@@ -206,20 +154,15 @@ void ButtonTick()
 {
 	static unsigned char score = 5;
 	const unsigned char* string = reinterpret_cast<const unsigned char *>("Score: ");
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Right");
+	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("Left");
+	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("Up");
+	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("Down");
 	
 	switch(state) //Transition 
 	{
 		case Init:
 			state = Init;
-			break;
-		case ReadYAnalogInput:
-			x = JoyStickY_ADC(SetADC_Ch(2));
-			state=ReadXAnalogInput;
-			break;
-		
-		case ReadXAnalogInput:
-			y = JoyStickX_ADC(SetADC_Ch(2));
-			state=ReadYAnalogInput;
 			break;
 		
 		default:
@@ -229,19 +172,30 @@ void ButtonTick()
 	switch(state)//Actions
 	{
 		case Init:
-			x = SetADC_Ch(0);
-			y = SetADC_Ch(1);
-			LCD_Cursor(1);
-		    LCD_DisplayString(1, string);
-			LCD_Cursor(8);
+			x = readadc(0);
+			y = readadc(1);
+			if(x > 800) {
+				LCD_DisplayString(1, string1);
+			}
+			else if (x < 200){
+				LCD_DisplayString(1, string2);
+			}
+			else{
+				LCD_ClearScreen();
+			}
+			
+			if(y > 800) {
+				LCD_DisplayString(1, string4);
+			}
+			else if (y < 200){
+				LCD_DisplayString(1, string3);
+			}
+
+			//LCD_Cursor(1);
+		    //LCD_DisplayString(1, string);
 			//LCD_WriteData('0' + ((score % 1000) / 100));
 			//LCD_WriteData('0' + ((score % 100) / 10));
 			//LCD_WriteData('0' + ((score % 10)));
-			LCD_WriteData('0' + x);
-			LCD_Cursor(12);
-			LCD_WriteData('0' + y);
-			//if(x > 5) score++;
-			//if(y > 3) score--;
 			set_PWM(329.63);
 			break;
 	}
@@ -255,7 +209,7 @@ int main(void)
 	DDRD = 0xFF; PORTD = 0x00; // LCD control lines
 	DDRA = 0x00; PORTA = 0xFF; //Input Analog
 	
-	ADC_init();
+	InitADC();
 	
 	TimerSet(250);
 	TimerOn();
