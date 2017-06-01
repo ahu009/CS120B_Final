@@ -172,8 +172,8 @@ void ButtonTick()
 	switch(state)//Actions
 	{
 		case Init:
-			x = readadc(0);
-			y = readadc(1);
+			x = readadc(4);
+			y = readadc(5);
 			if(x > 800) {
 				LCD_DisplayString(1, string1);
 			}
