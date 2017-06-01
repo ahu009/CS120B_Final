@@ -58,7 +58,7 @@ void TimerSet(unsigned long M) {
 	_avr_timer_cntcurr = _avr_timer_M;
 }
 
-enum SM1_States {sm1_display} state ;
+enum SM1_States {sm1_display, display2} state ;
 void SM1_Tick() {
 	static unsigned char column_val = 0x01; // sets the pattern displayed on columns
 	static unsigned char column_sel = 0x7F; // grounds column to display pattern
@@ -66,15 +66,19 @@ void SM1_Tick() {
 
 	switch (state) {
 		case sm1_display: 
+			state = display2;
+			break;
+		case display2:
 			state = sm1_display;
 			break;
-		default: state = sm1_display;
+		default:
+			state = sm1_display;
 			break;
 	}
 	
 	switch (state) {
 		case sm1_display: // If illuminated LED in bottom right corner
-		if (column_sel == 0xFE && column_val == 0x80) {
+		if ((column_sel == 0xFE && column_val == 0x80) || (column_sel == 0xFF)) {
 			column_sel = 0x7F; // display far left column
 			column_val = 0x01; // pattern illuminates top row
 		}
@@ -90,12 +94,25 @@ void SM1_Tick() {
 			PORTA = column_val; // PORTA displays column pattern
 			PORTB = column_sel; // PORTB selects column to display pattern
 			break;
+		
+		case display2:
+			if ((column_sel == 0xFE && column_val == 0x80) || (column_sel == 0xFF)) {
+				column_sel = 0x7F; // display far left column
+				column_val = 0x01; // pattern illuminates top row
+			}
+			else{
+				column_val = column_val << 1;
+			}
+			PORTA = column_val; // PORTA displays column pattern
+			PORTB = column_sel; // PORTB selects column to display pattern
+			break;
 		default: 
 			break;
 	}
 	
 	
 }; 
+
 
 
 int main(void)
@@ -107,7 +124,7 @@ int main(void)
 	
 	//InitADC();
 	
-	TimerSet(250);
+	TimerSet(100);
 	TimerOn();
 	//PWM_on();
 
@@ -115,10 +132,9 @@ int main(void)
 	//LCD_init();
 	state = sm1_display;
 	
-	while(250)
+	while(100)
 	{
 		SM1_Tick();
-
 		while (!TimerFlag);
 		TimerFlag = 0;
 	}
