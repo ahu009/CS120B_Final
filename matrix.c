@@ -58,6 +58,39 @@ void TimerSet(unsigned long M) {
 	_avr_timer_cntcurr = _avr_timer_M;
 }
 
+void transmit_data_blue(unsigned char data) {
+	int i;
+	for (i = 0; i < 8 ; ++i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTC = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTC |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTC |= 0x02;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTC |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTC = 0x00;
+}
+void transmit_data(unsigned char data) {
+	int i;
+	for (i = 0; i < 8 ; ++i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTA = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTA |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTA |= 0x02;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTA |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTA = 0x00;
+}
+
 enum SM1_States {sm1_display, display2} state ;
 void SM1_Tick() {
 	static unsigned char column_val = 0x01; // sets the pattern displayed on columns
@@ -65,20 +98,20 @@ void SM1_Tick() {
 	
 
 	switch (state) {
-		case sm1_display: 
-			state = display2;
-			break;
+		case sm1_display:
+		state = sm1_display;
+		break;
 		case display2:
-			state = sm1_display;
-			break;
+		state = sm1_display;
+		break;
 		default:
-			state = sm1_display;
-			break;
+		state = sm1_display;
+		break;
 	}
 	
 	switch (state) {
 		case sm1_display: // If illuminated LED in bottom right corner
-		if ((column_sel == 0xFE && column_val == 0x80) || (column_sel == 0xFF)) {
+		if ((column_sel == 0xFE && column_val == 0x80)/* || (column_sel == 0xFF)*/) {
 			column_sel = 0x7F; // display far left column
 			column_val = 0x01; // pattern illuminates top row
 		}
@@ -91,27 +124,28 @@ void SM1_Tick() {
 		else {
 			column_sel = (column_sel >> 1) | 0x80;
 		}
-			PORTA = column_val; // PORTA displays column pattern
-			PORTB = column_sel; // PORTB selects column to display pattern
-			break;
+		transmit_data(column_val); // PORTA displays column pattern
+		//PORTB = column_sel;
+		transmit_data_blue(column_sel); // PORTB selects column to display pattern
+		break;
 		
-		case display2:
-			if ((column_sel == 0xFE && column_val == 0x80) || (column_sel == 0xFF)) {
-				column_sel = 0x7F; // display far left column
-				column_val = 0x01; // pattern illuminates top row
-			}
-			else{
-				column_val = column_val << 1;
-			}
-			PORTA = column_val; // PORTA displays column pattern
-			PORTB = column_sel; // PORTB selects column to display pattern
-			break;
-		default: 
-			break;
+// 		case display2:
+// 		if ((column_sel == 0xFE && column_val == 0x80) || (column_sel == 0xFF)) {
+// 			column_sel = 0x7F; // display far left column
+// 			column_val = 0x01; // pattern illuminates top row
+// 		}
+// 		else{
+// 			column_val = column_val << 1;
+// 		}
+// 		PORTA = column_val; // PORTA displays column pattern
+// 		transmit_data(column_sel); // PORTB selects column to display pattern
+// 		break;
+		default:
+		break;
 	}
 	
 	
-}; 
+};
 
 
 
@@ -132,7 +166,7 @@ int main(void)
 	//LCD_init();
 	state = sm1_display;
 	
-	while(100)
+	while(1)
 	{
 		SM1_Tick();
 		while (!TimerFlag);
