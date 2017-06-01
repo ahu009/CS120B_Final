@@ -79,14 +79,14 @@ void transmit_data(unsigned char data) {
 	for (i = 0; i < 8 ; ++i) {
 		// Sets SRCLR to 1 allowing data to be set
 		// Also clears SRCLK in preparation of sending data
-		PORTA = 0x08;
+		PORTA = 0x80;
 		// set SER = next bit of data to be sent.
-		PORTA |= ((data >> i) & 0x01);
+		PORTA |= ((data << i) & 0x10);
 		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
-		PORTA |= 0x02;
+		PORTA |= 0x20;
 	}
 	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
-	PORTA |= 0x04;
+	PORTA |= 0x40;
 	// clears all lines in preparation of a new transmission
 	PORTA = 0x00;
 }
@@ -129,17 +129,17 @@ void SM1_Tick() {
 		transmit_data_blue(column_sel); // PORTB selects column to display pattern
 		break;
 		
-// 		case display2:
-// 		if ((column_sel == 0xFE && column_val == 0x80) || (column_sel == 0xFF)) {
-// 			column_sel = 0x7F; // display far left column
-// 			column_val = 0x01; // pattern illuminates top row
-// 		}
-// 		else{
-// 			column_val = column_val << 1;
-// 		}
-// 		PORTA = column_val; // PORTA displays column pattern
-// 		transmit_data(column_sel); // PORTB selects column to display pattern
-// 		break;
+		// 		case display2:
+		// 		if ((column_sel == 0xFE && column_val == 0x80) || (column_sel == 0xFF)) {
+		// 			column_sel = 0x7F; // display far left column
+		// 			column_val = 0x01; // pattern illuminates top row
+		// 		}
+		// 		else{
+		// 			column_val = column_val << 1;
+		// 		}
+		// 		PORTA = column_val; // PORTA displays column pattern
+		// 		transmit_data(column_sel); // PORTB selects column to display pattern
+		// 		break;
 		default:
 		break;
 	}
