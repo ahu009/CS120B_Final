@@ -60,19 +60,18 @@ void TimerSet(unsigned long M) {
 
 enum SM1_States {sm1_display} state ;
 void SM1_Tick() {
-	// === Local Variables ===
-	static unsigned char column_val = 0xFF; // sets the pattern displayed on columns
-	static unsigned char column_sel = 0x00; // grounds column to display pattern
+	static unsigned char column_val = 0x01; // sets the pattern displayed on columns
+	static unsigned char column_sel = 0x7F; // grounds column to display pattern
 	
-	// === Transitions ===
+
 	switch (state) {
-		case sm1_display: state = sm1_display;
-		break;
+		case sm1_display: 
+			state = sm1_display;
+			break;
 		default: state = sm1_display;
-		break;
+			break;
 	}
 	
-	// === Actions ===
 	switch (state) {
 		case sm1_display: // If illuminated LED in bottom right corner
 		if (column_sel == 0xFE && column_val == 0x80) {
@@ -88,13 +87,15 @@ void SM1_Tick() {
 		else {
 			column_sel = (column_sel >> 1) | 0x80;
 		}
-		break;
-		default: break;
+			PORTA = column_val; // PORTA displays column pattern
+			PORTB = column_sel; // PORTB selects column to display pattern
+			break;
+		default: 
+			break;
 	}
 	
-	PORTA = column_val; // PORTA displays column pattern
-	PORTB = column_sel; // PORTB selects column to display pattern
-};
+	
+}; 
 
 
 int main(void)
@@ -106,18 +107,18 @@ int main(void)
 	
 	//InitADC();
 	
-	TimerSet(100);
-	//TimerOn();
+	TimerSet(250);
+	TimerOn();
 	//PWM_on();
 
 
 	//LCD_init();
 	state = sm1_display;
 	
-	while(1)
+	while(250)
 	{
 		SM1_Tick();
-		
+
 		while (!TimerFlag);
 		TimerFlag = 0;
 	}
