@@ -58,37 +58,55 @@ void TimerSet(unsigned long M) {
 	_avr_timer_cntcurr = _avr_timer_M;
 }
 
+void transmit_data_red(unsigned char data) {
+	int i;
+	for (i = 0; i < 8 ; ++i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTD = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTD |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTD |= 0x02;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTD |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTD = 0x00;
+}
+
 void transmit_data_blue(unsigned char data) {
 	int i;
 	for (i = 0; i < 8 ; ++i) {
 		// Sets SRCLR to 1 allowing data to be set
 		// Also clears SRCLK in preparation of sending data
-		PORTC = 0x08;
+		PORTA = 0x08;
 		// set SER = next bit of data to be sent.
-		PORTC |= ((data >> i) & 0x01);
+		PORTA |= ((data >> i) & 0x01);
 		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
-		PORTC |= 0x02;
+		PORTA |= 0x02;
 	}
 	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
-	PORTC |= 0x04;
+	PORTA |= 0x04;
 	// clears all lines in preparation of a new transmission
-	PORTC = 0x00;
+	PORTA = 0x00;
 }
+
 void transmit_data(unsigned char data) {
 	int i;
 	for (i = 0; i < 8 ; ++i) {
 		// Sets SRCLR to 1 allowing data to be set
 		// Also clears SRCLK in preparation of sending data
-		PORTA = 0x80;
+		PORTB = 0x08;
 		// set SER = next bit of data to be sent.
-		PORTA |= ((data << i) & 0x10);
+		PORTB |= ((data >> i) & 0x01);
 		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
-		PORTA |= 0x20;
+		PORTB |= 0x02;
 	}
 	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
-	PORTA |= 0x40;
+	PORTB |= 0x04;
 	// clears all lines in preparation of a new transmission
-	PORTA = 0x00;
+	PORTB = 0x00;
 }
 
 enum SM1_States {sm1_display, display2} state ;
@@ -124,9 +142,9 @@ void SM1_Tick() {
 		else {
 			column_sel = (column_sel >> 1) | 0x80;
 		}
-		transmit_data(column_val); // PORTA displays column pattern
 		//PORTB = column_sel;
-		transmit_data_blue(column_sel); // PORTB selects column to display pattern
+		transmit_data(column_val); // PORTB selects column to display pattern
+		transmit_data_blue(column_sel); // PORTA displays column pattern
 		break;
 		
 		// 		case display2:
@@ -169,6 +187,7 @@ int main(void)
 	while(1)
 	{
 		SM1_Tick();
+
 		while (!TimerFlag);
 		TimerFlag = 0;
 	}
