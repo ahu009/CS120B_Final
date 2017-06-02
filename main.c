@@ -40,6 +40,58 @@ uint16_t readadc(uint8_t ch)
 }
 
 
+void transmit_data_red(unsigned char data) {
+	int i;
+	for (i = 0; i < 8 ; ++i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTD = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTD |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTD |= 0x02;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTD |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTD = 0x00;
+}
+
+void transmit_data_blue(unsigned char data) {
+	int i;
+	for (i = 0; i < 8 ; ++i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTA = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTA |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTA |= 0x02;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTA |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTA = 0x00;
+}
+
+void transmit_data(unsigned char data) {
+	int i;
+	for (i = 0; i < 8 ; ++i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTB = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTB |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTB |= 0x02;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTB |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTB = 0x00;
+}
+
+
 
 void set_PWM(double frequency) {
 
@@ -159,6 +211,9 @@ void ButtonTick()
 	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("Up");
 	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("Down");
 	
+	static unsigned char column_val = 0x01; // sets the pattern displayed on columns
+	static unsigned char column_sel = 0x7F; // grounds column to display pattern
+	
 	switch(state) //Transition 
 	{
 		case Init:
@@ -171,14 +226,17 @@ void ButtonTick()
 
 	switch(state)//Actions
 	{
+		
 		case Init:
 			x = readadc(4);
 			y = readadc(5);
 			if(x > 800) {
 				LCD_DisplayString(1, string1);
+				column_sel = (column_sel << 1) | 0x01;
 			}
 			else if (x < 200){
 				LCD_DisplayString(1, string2);
+				column_sel = (column_sel >> 1) | 0x80;
 			}
 			else{
 				LCD_ClearScreen();
@@ -186,9 +244,11 @@ void ButtonTick()
 			
 			if(y > 800) {
 				LCD_DisplayString(1, string4);
+				column_val = column_val >> 1;
 			}
 			else if (y < 200){
 				LCD_DisplayString(1, string3);
+				column_val = column_val << 1;
 			}
 
 			//LCD_Cursor(1);
@@ -199,19 +259,22 @@ void ButtonTick()
 			set_PWM(329.63);
 			break;
 	}
+	
+	transmit_data(column_val); // PORTB selects column to display pattern
+	transmit_data_blue(column_sel); // PORTA displays column pattern
 }
 
 
 int main(void)
 {
-	DDRB = 0xF0; PORTB = 0x0F;
+	DDRB = 0xFF; PORTB = 0xFF;
 	DDRC = 0xFF; PORTC = 0x00; // LCD data lines
 	DDRD = 0xFF; PORTD = 0x00; // LCD control lines
-	DDRA = 0x00; PORTA = 0xFF; //Input Analog
+	DDRA = 0x0F; PORTA = 0xF0; //Input Analog
 	
 	InitADC();
 	
-	TimerSet(250);
+	TimerSet(150);
 	TimerOn();
 	PWM_on();
 
