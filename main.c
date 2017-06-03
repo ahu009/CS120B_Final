@@ -1,4 +1,3 @@
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "io.c"
@@ -7,8 +6,8 @@ unsigned char HangGame = 0;
 unsigned char ButtonStart;
 unsigned char ButtonReset;
 volatile unsigned char TimerFlag = 0;
-unsigned long _avr_timer_M = 1; 
-unsigned long _avr_timer_cntcurr = 0; 
+unsigned long _avr_timer_M = 1;
+unsigned long _avr_timer_cntcurr = 0;
 unsigned char bladeX = 1, bladeY = 1;
 unsigned char score;
 uint16_t  x = 0;
@@ -19,15 +18,15 @@ uint16_t y = 0;
 void InitADC(void)
 {
 	ADMUX|=(1<<REFS0);
-	ADCSRA|=(1<<ADEN)|(1<<ADPS0)|(1<<ADPS1)|(1<<ADPS2); 
+	ADCSRA|=(1<<ADEN)|(1<<ADPS0)|(1<<ADPS1)|(1<<ADPS2);
 }
 uint16_t readadc(uint8_t ch)
 {
-	ch&=0b00000111;         
-	ADMUX = (ADMUX & 0xf8)|ch;  
-	ADCSRA|=(1<<ADSC);        
-	while((ADCSRA)&(1<<ADSC));    
-	return(ADC);    
+	ch&=0b00000111;
+	ADMUX = (ADMUX & 0xf8)|ch;
+	ADCSRA|=(1<<ADSC);
+	while((ADCSRA)&(1<<ADSC));
+	return(ADC);
 }
 //Driver for Joystick Ends Here
 
@@ -61,7 +60,7 @@ void transmit_data(unsigned char data) {
 	int i;
 	for (i = 0; i < 8 ; ++i) {
 		PORTB = 0x08;
-	
+		
 		PORTB |= ((data >> i) & 0x01);
 
 		PORTB |= 0x02;
@@ -79,8 +78,8 @@ void set_PWM(double frequency) {
 	static double current_frequency;
 	if (frequency != current_frequency) {
 
-		if (!frequency) TCCR3B &= 0x08; 
-		else TCCR3B |= 0x03; 
+		if (!frequency) TCCR3B &= 0x08;
+		else TCCR3B |= 0x03;
 		
 		if (frequency < 0.954) OCR3A = 0xFFFF;
 		
@@ -108,7 +107,7 @@ void PWM_off() {
 void TimerOn() {
 	TCCR1B = 0x0B;
 	
-	OCR1A = 125;	
+	OCR1A = 125;
 
 	TIMSK1 = 0x02;
 
@@ -116,11 +115,11 @@ void TimerOn() {
 
 	_avr_timer_cntcurr = _avr_timer_M;
 
-	SREG |= 0x80; 
+	SREG |= 0x80;
 }
 
 void TimerOff() {
-	TCCR1B = 0x00; 
+	TCCR1B = 0x00;
 }
 
 void TimerISR() {
@@ -128,9 +127,9 @@ void TimerISR() {
 }
 
 ISR(TIMER1_COMPA_vect) {
-	_avr_timer_cntcurr--; 
-	if (_avr_timer_cntcurr == 0) { 
-		TimerISR(); 
+	_avr_timer_cntcurr--;
+	if (_avr_timer_cntcurr == 0) {
+		TimerISR();
 		_avr_timer_cntcurr = _avr_timer_M;
 	}
 }
@@ -143,7 +142,7 @@ void TimerSet(unsigned long M) {
 void LightLED(unsigned char x, unsigned char y)
 {
 	unsigned char column_val = 0x80;
-	unsigned char column_sel = 0x7F; 
+	unsigned char column_sel = 0x7F;
 	
 	for(int i = 1; i < x; i++){
 		column_sel = (column_sel >> 1) | 0x80;
@@ -152,15 +151,15 @@ void LightLED(unsigned char x, unsigned char y)
 		column_val = column_val >> 1;
 	}
 	
-	transmit_data(column_val); 
-	transmit_data_blue(column_sel); 
+	transmit_data(column_val);
+	transmit_data_blue(column_sel);
 	return;
 }
 
 void UnlightLED()
 {
 	transmit_data(0x00);
-	transmit_data_blue(0xFF); 
+	transmit_data_blue(0xFF);
 	return;
 }
 
@@ -169,42 +168,36 @@ void StartTick(){
 	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("WaitStart");
 	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("GameOn");
 	
+	ButtonStart = ~PINA & 0x80;
+	
 	switch(gamestate){
 		case WaitStart:
-			if(ButtonStart) {
-				gamestate = Gameon;
-			}
-			else if(!ButtonStart) {
-				gamestate = WaitStart;
-			}
-			break;
-		case Gameon:
-			if(ButtonReset) {
-				gamestate = WaitStart;
-			}
-			else if(!ButtonReset) {
-				gamestate = Gameon;
-			}
-			break;
-		default: 
 			gamestate = WaitStart;
 			break;
-	}	
+		case Gameon:
+			break;
+		default:
+			gamestate = WaitStart;
+			break;
+	}
 	
 	switch(gamestate){
 		case WaitStart:
 			HangGame = 1;
-			LCD_ClearScreen();
-			LCD_DisplayString(1, string2);
+			if(ButtonStart){
+				LCD_DisplayString(1, string2);
+			}
+			if(ButtonReset){
+				LCD_DisplayString(1, string1);
+			}
 			break;
 		case Gameon:
 			HangGame = 0;
-			LCD_ClearScreen();
 			LCD_DisplayString(1, string1);
 			//Add Reset Shit as you go
 			bladeX = 1;
 			bladeY = 1;
-			break;
+		break;
 	}
 };
 
@@ -218,54 +211,51 @@ void JoystickTick()
 	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("Down");
 
 	static unsigned char score = 0;
-	static unsigned char x_pos = 1;
-	static unsigned char y_pos = 1;
 	
 	switch(state)
 	{
 		case Init:
-			state = Init;
-			break;
+		state = Init;
+		break;
 		
 		default:
-			break;
+		break;
 	}
 
 	switch(state)
 	{
 		case Init:
-			if(!HangGame){
-				x = readadc(4);
-				y = readadc(5);
-				if(x > 800) {
-					LCD_DisplayString(1, string1);
-					if(bladeX < 8) bladeX += 1;
-				}
-				else if (x < 200){
-					LCD_DisplayString(1, string2);
-					if(bladeX > 1) bladeX -= 1;
-				}
-				else{
-					LCD_ClearScreen();
-				}
-			
-				if(y > 800) {
-					LCD_DisplayString(1, string4);
-					if(bladeY > 1 )bladeY -= 1;
-				}
-				else if (y < 200){
-					LCD_DisplayString(1, string3);
-					if(bladeY < 8) bladeY += 1;
-				}
-			
-				//LCD_Cursor(1);
-				//LCD_DisplayString(1, string);
-				//LCD_WriteData('0' + ((score % 1000) / 100));
-				//LCD_WriteData('0' + ((score % 100) / 10));
-				//LCD_WriteData('0' + ((score % 10)));
-				set_PWM(329.63);
+			x = readadc(4);
+			y = readadc(5);
+			if(x > 800) {
+				//LCD_DisplayString(1, string1);
+				if(bladeX < 8) bladeX += 1;
 			}
-			break;
+			else if (x < 200){
+				//LCD_DisplayString(1, string2);
+				if(bladeX > 1) bladeX -= 1;
+			}
+			else{
+				//LCD_ClearScreen();
+			}
+			
+			if(y > 800) {
+				//LCD_DisplayString(1, string4);
+				if(bladeY > 1 )bladeY -= 1;
+			}
+			else if (y < 200){
+				//LCD_DisplayString(1, string3);
+				if(bladeY < 8) bladeY += 1;
+			}
+			
+			//LCD_Cursor(1);
+			//LCD_DisplayString(1, string);
+			//LCD_WriteData('0' + ((score % 1000) / 100));
+			//LCD_WriteData('0' + ((score % 100) / 10));
+			//LCD_WriteData('0' + ((score % 10)));
+			set_PWM(329.63);
+		
+		break;
 	}
 };
 
@@ -276,25 +266,25 @@ void DisplayTick(){
 	
 	switch(displayState){
 		case Init1:
-			displayState = Init1;
-			break;
+		displayState = Init1;
+		break;
 	}
 	
 	switch(displayState){
-			case Init1:
-			if(!HangGame){
-				if(i == 0){
-					UnlightLED();
-					LightLED(bladeX, bladeY);
-				}
-				else if(i == 1){
-					UnlightLED();
-					LightLED(8,8);
-				}
-				i++;
-				if(i >= numDisplay) i = 0;
+		case Init1:
+		
+			if(i == 0){
+				UnlightLED();
+				LightLED(bladeX, bladeY);
 			}
-			break;
+			else if(i == 1){
+				UnlightLED();
+				LightLED(8,8);
+			}
+			i++;
+			if(i >= numDisplay) i = 0;
+		
+		break;
 	}
 };
 
@@ -302,9 +292,9 @@ void DisplayTick(){
 int main(void)
 {
 	DDRB = 0xFF; PORTB = 0xFF;
-	DDRC = 0xFF; PORTC = 0x00; 
-	DDRD = 0xFF; PORTD = 0x00; 
-	DDRA = 0x0F; PORTA = 0xF0; 
+	DDRC = 0xFF; PORTC = 0x00;
+	DDRD = 0xFF; PORTD = 0x00;
+	DDRA = 0x0F; PORTA = 0xF0;
 	
 	unsigned char systemPeriod = 2;
 	
@@ -323,10 +313,7 @@ int main(void)
 	unsigned long elapsedTime3 = 100;
 	
 	while(1)
-	{
-		ButtonStart = ~PINA & 0x80;
-		ButtonReset = ~PINA & 0x40;
-		
+	{	
 		if(elapsedTime1 >= 2){
 			DisplayTick();
 			elapsedTime1 = 0;
@@ -339,6 +326,7 @@ int main(void)
 			StartTick();
 			elapsedTime3 = 0;
 		}
+		
 		while (!TimerFlag);
 		TimerFlag = 0;
 		
