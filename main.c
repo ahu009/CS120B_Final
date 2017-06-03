@@ -3,11 +3,16 @@
 #include <avr/interrupt.h>
 #include "io.c"
 
+unsigned char HangGame = 0;
+unsigned char ButtonStart;
+unsigned char ButtonReset;
 volatile unsigned char TimerFlag = 0;
 unsigned long _avr_timer_M = 1; 
 unsigned long _avr_timer_cntcurr = 0; 
-unsigned char column_val = 0x80;
-unsigned char column_sel = 0x7F;
+unsigned char bladeX = 1, bladeY = 1;
+unsigned char score;
+uint16_t  x = 0;
+uint16_t y = 0;
 
 //Code Taken From (Driver for Joystick):
 //http://www.embedds.com/interfacing-analog-joystick-with-avr/
@@ -137,53 +142,74 @@ void TimerSet(unsigned long M) {
 
 void LightLED(unsigned char x, unsigned char y)
 {
-	unsigned char temp_y = 0x80; 
-	unsigned char temp_x = 0x7F; 
+	unsigned char column_val = 0x80;
+	unsigned char column_sel = 0x7F; 
 	
 	for(int i = 1; i < x; i++){
-		temp_x = (temp_x >> 1) | 0x80;
+		column_sel = (column_sel >> 1) | 0x80;
 	}
 	for(int i = 1; i < y; i++){
-		temp_y = temp_y >> 1;
+		column_val = column_val >> 1;
 	}
 	
-	column_sel = column_sel & temp_x;
-	column_val = column_val | temp_y;
 	transmit_data(column_val); 
 	transmit_data_blue(column_sel); 
 	return;
 }
 
-void UnlightLED(unsigned char x, unsigned char y)
+void UnlightLED()
 {
-	unsigned char temp_y = 0x7F; 
-	unsigned char temp_x = 0x80; 
-	
-	for(int i = 1; i < x; i++){
-		temp_x = (temp_x >> 1);
-	}
-	for(int i = 1; i < y; i++){
-		temp_y = (temp_y >> 1) | 0x80;
-	}
-	
-	column_sel = column_sel | temp_x;
-	column_val = column_val & temp_y;
-	transmit_data(column_val); // PORTB selects column to display pattern
-	transmit_data_blue(column_sel); // PORTA displays column pattern
+	transmit_data(0x00);
+	transmit_data_blue(0xFF); 
 	return;
 }
 
-unsigned char ButtonA1;
-unsigned char ButtonA0;
-unsigned char cnt;
-unsigned char period = 1;
-unsigned char score;
-uint16_t  x = 0;
-uint16_t y = 0;
+enum GameStates{WaitStart, Gameon} gamestate;
+void StartTick(){
+	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("WaitStart");
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("GameOn");
+	
+	switch(gamestate){
+		case WaitStart:
+			if(ButtonStart) {
+				gamestate = Gameon;
+			}
+			else if(!ButtonStart) {
+				gamestate = WaitStart;
+			}
+			break;
+		case Gameon:
+			if(ButtonReset) {
+				gamestate = WaitStart;
+			}
+			else if(!ButtonReset) {
+				gamestate = Gameon;
+			}
+			break;
+		default: 
+			gamestate = WaitStart;
+			break;
+	}	
+	
+	switch(gamestate){
+		case WaitStart:
+			HangGame = 1;
+			LCD_ClearScreen();
+			LCD_DisplayString(1, string2);
+			break;
+		case Gameon:
+			HangGame = 0;
+			LCD_ClearScreen();
+			LCD_DisplayString(1, string1);
+			//Add Reset Shit as you go
+			bladeX = 1;
+			bladeY = 1;
+			break;
+	}
+};
 
 enum States{Init, ReadYAnalogInput, ReadXAnalogInput} state;
-
-void ButtonTick()
+void JoystickTick()
 {
 	const unsigned char* string = reinterpret_cast<const unsigned char *>("Score: ");
 	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Right");
@@ -195,7 +221,7 @@ void ButtonTick()
 	static unsigned char x_pos = 1;
 	static unsigned char y_pos = 1;
 	
-	switch(state) //Transition 
+	switch(state)
 	{
 		case Init:
 			state = Init;
@@ -208,84 +234,116 @@ void ButtonTick()
 	switch(state)
 	{
 		case Init:
-			//LightLED(8,8);
-			x = readadc(4);
-			y = readadc(5);
-			//LightLED(x_pos,y_pos);
-			//LightLED(7,7);
-			if(x > 800) {
-				LCD_DisplayString(1, string1);
-				UnlightLED(x_pos, y_pos);
-				x_pos = x_pos + 1;
-				LightLED(x_pos, y_pos);
-				//column_sel = (column_sel >> 1) | 0x80;
-			}
-			else if (x < 200){
-				LCD_DisplayString(1, string2);
-				UnlightLED(x_pos, y_pos);
-				x_pos = x_pos - 1;
-				LightLED(x_pos, y_pos);
-				//column_sel = (column_sel << 1) | 0x01;
-			}
-			else{
-				LCD_ClearScreen();
-			}
+			if(!HangGame){
+				x = readadc(4);
+				y = readadc(5);
+				if(x > 800) {
+					LCD_DisplayString(1, string1);
+					if(bladeX < 8) bladeX += 1;
+				}
+				else if (x < 200){
+					LCD_DisplayString(1, string2);
+					if(bladeX > 1) bladeX -= 1;
+				}
+				else{
+					LCD_ClearScreen();
+				}
 			
-			if(y > 800) {
-				LCD_DisplayString(1, string4);
-				UnlightLED(x_pos, y_pos);
-				y_pos = y_pos - 1;
-				LightLED(x_pos, y_pos);
-				//column_val = column_val << 1;
+				if(y > 800) {
+					LCD_DisplayString(1, string4);
+					if(bladeY > 1 )bladeY -= 1;
+				}
+				else if (y < 200){
+					LCD_DisplayString(1, string3);
+					if(bladeY < 8) bladeY += 1;
+				}
+			
+				//LCD_Cursor(1);
+				//LCD_DisplayString(1, string);
+				//LCD_WriteData('0' + ((score % 1000) / 100));
+				//LCD_WriteData('0' + ((score % 100) / 10));
+				//LCD_WriteData('0' + ((score % 10)));
+				set_PWM(329.63);
 			}
-			else if (y < 200){
-				LCD_DisplayString(1, string3);
-				UnlightLED(x_pos, y_pos);
-				y_pos = y_pos + 1;
-				LightLED(x_pos, y_pos);
-				//column_val = column_val >> 1;
-			}
+			break;
+	}
+};
 
-			//LCD_Cursor(1);
-		    //LCD_DisplayString(1, string);
-			//LCD_WriteData('0' + ((score % 1000) / 100));
-			//LCD_WriteData('0' + ((score % 100) / 10));
-			//LCD_WriteData('0' + ((score % 10)));
-			set_PWM(329.63);
+enum displayStates{Init1} displayState;
+void DisplayTick(){
+	unsigned const char numDisplay = 2;
+	static unsigned char i = 0;
+	
+	switch(displayState){
+		case Init1:
+			displayState = Init1;
 			break;
 	}
 	
-	LightLED(x_pos, y_pos);
-	//LightLED(8, 8);
-	//transmit_data(column_val); // PORTB selects column to display pattern
-	//transmit_data_blue(column_sel); // PORTA displays column pattern
-}
+	switch(displayState){
+			case Init1:
+			if(!HangGame){
+				if(i == 0){
+					UnlightLED();
+					LightLED(bladeX, bladeY);
+				}
+				else if(i == 1){
+					UnlightLED();
+					LightLED(8,8);
+				}
+				i++;
+				if(i >= numDisplay) i = 0;
+			}
+			break;
+	}
+};
 
 
 int main(void)
 {
 	DDRB = 0xFF; PORTB = 0xFF;
-	DDRC = 0xFF; PORTC = 0x00; // LCD data lines
-	DDRD = 0xFF; PORTD = 0x00; // LCD control lines
-	DDRA = 0x0F; PORTA = 0xF0; //Input Analog
+	DDRC = 0xFF; PORTC = 0x00; 
+	DDRD = 0xFF; PORTD = 0x00; 
+	DDRA = 0x0F; PORTA = 0xF0; 
+	
+	unsigned char systemPeriod = 2;
 	
 	InitADC();
-	
-	TimerSet(150);
+	TimerSet(systemPeriod);
 	TimerOn();
 	PWM_on();
-
-
 	LCD_init();
-
+	
 	state = Init;
+	displayState = Init1;
+	gamestate = WaitStart;
+	
+	unsigned long elapsedTime1 = 2;
+	unsigned long elapsedTime2 = 100;
+	unsigned long elapsedTime3 = 100;
+	
 	while(1)
 	{
-		//ButtonA0 = ~PINA & 0x01;
-		//ButtonA1 = ~PINA & 0x02;
-		ButtonTick();
+		ButtonStart = ~PINA & 0x80;
+		ButtonReset = ~PINA & 0x40;
 		
+		if(elapsedTime1 >= 2){
+			DisplayTick();
+			elapsedTime1 = 0;
+		}
+		if(elapsedTime2 >= 100){
+			JoystickTick();
+			elapsedTime2 = 0;
+		}
+		if(elapsedTime3 >= 100){
+			StartTick();
+			elapsedTime3 = 0;
+		}
 		while (!TimerFlag);
 		TimerFlag = 0;
+		
+		elapsedTime1 = elapsedTime1 + systemPeriod;
+		elapsedTime2 = elapsedTime2 + systemPeriod;
+		elapsedTime3 = elapsedTime3 + systemPeriod;
 	}
 }
