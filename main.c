@@ -1,5 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <stdlib.h>
 #include "io.c"
 
 unsigned char HangGame = 0;
@@ -8,20 +9,27 @@ volatile unsigned char TimerFlag = 0;
 unsigned long _avr_timer_M = 1;
 unsigned long _avr_timer_cntcurr = 0;
 unsigned char bladeX = 1, bladeY = 1;
-unsigned char score;
+
+unsigned char score = 0;
+unsigned char misses = 0;
+unsigned char lost = 0;
+unsigned char start = 0;
+
 uint16_t  x = 0;
 uint16_t y = 0;
 
 typedef struct fruit {
 	unsigned char x1, y1, x2, y2;
 	unsigned char pattern;
-	unsigned char speed;	
+	unsigned char speed;
+	unsigned char available;	
 } fruit;
 
 typedef struct bomb {
 	unsigned char x1, y1, x2, y2;
 	unsigned char pattern;
 	unsigned char speed;
+	unsigned char available;
 } bomb;
 
 fruit fruits[7];
@@ -177,7 +185,8 @@ void LightLED(unsigned char x, unsigned char y)
 	return;
 }
 
-
+//IMPORTANT: WHEN HAVE EVERYTHING FINISH, PRINT EVERYTHING AT ONCE (Fruits, Bombs, Blade)
+//PURPOSE: To not have seizure every time you play
 void LightBlock(unsigned char x, unsigned char y){
 	unsigned char column_val = 0xC0;
 	unsigned char column_sel = 0x3F;
@@ -194,40 +203,128 @@ void LightBlock(unsigned char x, unsigned char y){
 	return;
 }
 
-enum FruitStates{NoFruit, CreateFruit, Wait, Lose} FruitState;
-void FruitTick(){
-	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("FruitCreated");
-	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("???");
+//IMPORTANT: AFTER TEST EVERYTHING FRUIT-RELATED, HAVE IT ACCEPT ARRAY AND COMPUTE ALL FRUIT
+unsigned char ComputeFruitCollision(fruit Fruit){
+	unsigned char fruitHit = 0;
+	if(Fruit.x1 == bladeX || Fruit.x2 == bladeX)
+		if(Fruit.y1 == bladeY || Fruit.y2 == bladeY || (Fruit.y1 + 1) == bladeY || (Fruit.y2 + 1) == bladeY)
+			fruitHit = 1;
+	return fruitHit;
+}
+
+unsigned char ComputeFruitMiss(fruit Fruit){
+	unsigned char fruitMiss = 0;
+	if(Fruit.y1 <= 0)
+		fruitMiss = 1;
+	return fruitMiss;
+}
+
+void KillFruit(fruit &Fruit){
+	Fruit.available = 1;
+	Fruit.x1 = 100;
+	Fruit.y1 = 100;
+	Fruit.x2 = 100;
+	Fruit.y2 = 100;
+	Fruit.speed = 0;
+	Fruit.pattern = 0;
+	return;
+}
+
+//IMPORTANT: ADD DIFFERENT PATTERNS LATER
+void UpdateFruit(fruit &Fruit){
+	Fruit.y1 -= Fruit.speed;
+	Fruit.y2 -= Fruit.speed;
+	return;
+}
+
+void UpdateBomb(bomb &Bomb){
+	return;
+}
+
+void GenerateFruit(){
+	fruits[1].pattern = rand() % 2;
+	fruits[1].speed = 1;
+	fruits[1].x1 = rand() % 7 + 1;
+	fruits[1].y1 = 7;
+	fruits[1].x2 = fruits[1].x1 + 1;   // CREATE RAND FUNCTION LATER TO INITIALIZE RANDOMASS FRUIT
+	fruits[1].y2 = fruits[1].y1;
+	fruits[1].available = 0;
+}
+
+//IMPORTANT: Change later to increase speed
+enum BlockStates{Update, WaitBlock} BlockState;
+void BlockUpdateTick(){
+	static unsigned char i = 10;
+	static unsigned char speed = 1;
 	
+	switch(BlockState){
+		case Update:
+			BlockState = WaitBlock;
+			break;
+		case WaitBlock:
+			if(i <= 0){
+				BlockState = Update;
+				i = 10;
+			}
+			else{
+				BlockState = WaitBlock;
+			}
+			i = i - speed;
+			break;
+	}	
+	
+	switch(BlockState){
+		case Update:
+			UpdateFruit(fruits[1]);
+			//UpdateBomb(bombs[1]);
+			break;
+		case WaitBlock:
+			break;
+	}
+};
+
+enum FruitStates{NoFruit, CreateFruit, Wait, FruitLose} FruitState;
+void FruitTick(){
 	switch(FruitState){
 		case NoFruit:
 			FruitState = CreateFruit;
 			break;
 		case CreateFruit:
-			
+			FruitState = Wait;
 			break;
 		case Wait:
+			FruitState = Wait;
 			break;
-		case Lose:
+		case FruitLose:
 			break;
 	}
 	
+	//IMPORTANT: Replace with array when youre done testing everything
 	switch(FruitState){
 		case NoFruit:
 			break;
 		case CreateFruit:
+			GenerateFruit();
 			break;
 		case Wait:
+			if(ComputeFruitCollision(fruits[1])){
+				KillFruit(fruits[1]);
+				score++;
+			}
+			if(ComputeFruitMiss(fruits[1])){
+				KillFruit(fruits[1]);
+				misses++;
+			}
 			break;
-		case Lose:
+		case FruitLose:
 			break;
 	}
 };
 
-enum GameStates{WaitStart, ButtonDown1, ButtonDown2, Gameon} gamestate;
+enum GameStates{WaitStart, ButtonDown1, ButtonDown2, Gameon, SetSeed} gamestate;
 void StartTick(){
-	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("WaitStart");
-	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("GameOn");
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Press Start");
+	static unsigned char i = 0;
 	
 	ButtonState = ~PIND & 0x10;
 	
@@ -242,11 +339,15 @@ void StartTick(){
 			if(ButtonState)
 				gamestate = ButtonDown1;
 			else
-				gamestate = Gameon;
+				gamestate = SetSeed;
 			break;
+		case SetSeed:
+			gamestate = Gameon;
 		case Gameon:
 			if(ButtonState)
 				gamestate = ButtonDown2;
+			else if(lost)
+				gamestate = WaitStart;
 			else
 				gamestate = Gameon;
 			break;
@@ -265,14 +366,20 @@ void StartTick(){
 			LCD_DisplayString(1, string1);
 			HangGame = 1;
 			UnlightLED();
+			lost = 0;
 			bladeX = 1;
 			bladeY = 1;
+			start = 0;
+			misses = 0;
+			i++;
 			break;
 		case Gameon:
-			LCD_ClearScreen();
+			i = 0;
+			start = 1;
 			HangGame = 0;
-			LCD_DisplayString(1, string2);
 			break;
+		case SetSeed:
+			srand(i);
 		case ButtonDown1:
 			break;
 		case ButtonDown2:
@@ -282,15 +389,7 @@ void StartTick(){
 
 enum States{Init} state;
 void JoystickTick()
-{
-	const unsigned char* string = reinterpret_cast<const unsigned char *>("Score: ");
-	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Right");
-	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("Left");
-	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("Up");
-	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("Down");
-
-	static unsigned char score = 0;
-	
+{		
 	switch(state)
 	{
 		case Init:
@@ -307,31 +406,18 @@ void JoystickTick()
 		x = readadc(4);
 		y = readadc(5);
 		if(x > 800) {
-			//LCD_DisplayString(1, string1);
 			if(bladeX < 8) bladeX += 1;
 		}
 		else if (x < 200){
-			//LCD_DisplayString(1, string2);
 			if(bladeX > 1) bladeX -= 1;
-		}
-		else{
-			//LCD_ClearScreen();
 		}
 		
 		if(y > 800) {
-			//LCD_DisplayString(1, string4);
 			if(bladeY > 1 )bladeY -= 1;
 		}
 		else if (y < 200){
-			//LCD_DisplayString(1, string3);
 			if(bladeY < 8) bladeY += 1;
 		}
-		
-		//LCD_Cursor(1);
-		//LCD_DisplayString(1, string);
-		//LCD_WriteData('0' + ((score % 1000) / 100));
-		//LCD_WriteData('0' + ((score % 100) / 10));
-		//LCD_WriteData('0' + ((score % 10)));
 		set_PWM(329.63);
 		
 		break;
@@ -340,7 +426,7 @@ void JoystickTick()
 
 enum displayStates{Init1} displayState;
 void DisplayTick(){
-	unsigned const char numDisplay = 3;
+	unsigned const char numDisplay = 2;
 	static unsigned char i = 0;
 	
 	switch(displayState){
@@ -351,25 +437,73 @@ void DisplayTick(){
 	
 	switch(displayState){
 		case Init1:
-		
-		if(i == 0){
-			UnlightLED();
-			LightLED(bladeX, bladeY);
-		}
-		else if(i == 1){
-			UnlightLED();
-			LightLED(8,8);
-		}
-		else if(i == 2){
-			//UnlightLED();
-			//LightBlock(2,8);
-		}
-		i++;
-		if(i >= numDisplay) i = 0;
-		break;
+			if(i == 0){
+				UnlightLED();
+				LightLED(bladeX, bladeY);
+			}
+			else if(i == 1){
+				UnlightLED();
+				LightBlock(fruits[1].x1, fruits[1].y1);
+			}
+			i++;
+			if(i >= numDisplay) i = 0;
+			break;
 	}
 }
 
+enum LCDStates{DisplayScore, Lose, Nothing} LCDState;
+void LCDTick(){
+	const unsigned char* string = reinterpret_cast<const unsigned char *>("Score: ");
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Score:       X");
+	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("Score:       XX");
+	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("Score:       XXX");
+	
+	switch(LCDState){
+		case Nothing:
+			if(start)
+				LCDState = DisplayScore;
+			else
+				LCDState = Nothing;
+			break;
+		case DisplayScore:
+			if(misses >= 3){
+				LCDState = Lose;
+			}
+			else
+				LCDState = DisplayScore;
+			break;
+		case Lose:
+			LCDState = Nothing;
+			break;
+	}	
+	
+	switch(LCDState){
+		case DisplayScore:
+			LCD_ClearScreen();
+			if(misses == 1){
+				LCD_DisplayString(1, string1);
+			}
+			else if(misses == 2){
+				LCD_DisplayString(1, string2);
+			}
+			else if(misses == 3){
+				LCD_DisplayString(1, string3);
+			}
+			else{
+				LCD_DisplayString(1, string);
+			}
+			LCD_Cursor(8);
+			LCD_WriteData('0' + ((misses % 1000) / 100));
+			LCD_WriteData('0' + ((misses % 100) / 10));
+			LCD_WriteData('0' + ((misses % 10)));
+			break;
+		case Lose:
+			lost = 1;
+			break;
+		case Nothing:
+			break;
+	}
+};
 
 int main(void)
 {
@@ -390,11 +524,15 @@ int main(void)
 	displayState = Init1;
 	gamestate = WaitStart;
 	FruitState = NoFruit;
+	BlockState = Update;
+	LCDState = Nothing;
 	
 	unsigned long elapsedTime1 = 1;
 	unsigned long elapsedTime2 = 100;
 	unsigned long elapsedTime3 = 150;
 	unsigned long elapsedTime4 = 150;
+	unsigned long elapsedTime5 = 100;
+	unsigned long elapsedTime6 = 250;
 	
 	while(1)
 	{
@@ -416,7 +554,17 @@ int main(void)
 				FruitTick();
 				elapsedTime4 = 0;
 			}
+			if(elapsedTime5 >= 100){
+				BlockUpdateTick();
+				elapsedTime5 = 0;
+			}
+			if(elapsedTime6 >= 250){
+				LCDTick();
+				elapsedTime6 = 0;
+			}
 		}
+
+		
 		
 		while (!TimerFlag);
 		TimerFlag = 0;
@@ -425,5 +573,7 @@ int main(void)
 		elapsedTime2 = elapsedTime2 + systemPeriod;
 		elapsedTime3 = elapsedTime3 + systemPeriod;
 		elapsedTime4 = elapsedTime4 + systemPeriod;
+		elapsedTime5 = elapsedTime5 + systemPeriod;
+		elapsedTime6 = elapsedTime6 + systemPeriod;
 	}
 }
