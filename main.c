@@ -3,8 +3,7 @@
 #include "io.c"
 
 unsigned char HangGame = 0;
-unsigned char ButtonStart;
-unsigned char ButtonReset;
+unsigned char ButtonState;
 volatile unsigned char TimerFlag = 0;
 unsigned long _avr_timer_M = 1;
 unsigned long _avr_timer_cntcurr = 0;
@@ -12,6 +11,21 @@ unsigned char bladeX = 1, bladeY = 1;
 unsigned char score;
 uint16_t  x = 0;
 uint16_t y = 0;
+
+typedef struct fruit {
+	unsigned char x1, y1, x2, y2;
+	unsigned char pattern;
+	unsigned char speed;	
+} fruit;
+
+typedef struct bomb {
+	unsigned char x1, y1, x2, y2;
+	unsigned char pattern;
+	unsigned char speed;
+} bomb;
+
+fruit fruits[7];
+bomb bombs[7];
 
 //Code Taken From (Driver for Joystick):
 //http://www.embedds.com/interfacing-analog-joystick-with-avr/
@@ -139,6 +153,13 @@ void TimerSet(unsigned long M) {
 	_avr_timer_cntcurr = _avr_timer_M;
 }
 
+void UnlightLED()
+{
+	transmit_data(0x00);
+	transmit_data_blue(0xFF);
+	return;
+}
+
 void LightLED(unsigned char x, unsigned char y)
 {
 	unsigned char column_val = 0x80;
@@ -156,52 +177,110 @@ void LightLED(unsigned char x, unsigned char y)
 	return;
 }
 
-void UnlightLED()
-{
-	transmit_data(0x00);
-	transmit_data_blue(0xFF);
+
+void LightBlock(unsigned char x, unsigned char y){
+	unsigned char column_val = 0xC0;
+	unsigned char column_sel = 0x3F;
+	
+	for(int i = 1; i < x; i++){
+		column_sel = (column_sel >> 1) | 0x80;
+	}
+	for(int i = 1; i < y; i++){
+		column_val = column_val >> 1;
+	}
+	
+	transmit_data(column_val);
+	transmit_data_blue(column_sel);
 	return;
 }
 
-enum GameStates{WaitStart, Gameon} gamestate;
-void StartTick(){
-	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("WaitStart");
-	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("GameOn");
+enum FruitStates{NoFruit, CreateFruit, Wait, Lose} FruitState;
+void FruitTick(){
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("FruitCreated");
+	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("???");
 	
-	ButtonStart = ~PINA & 0x80;
-	
-	switch(gamestate){
-		case WaitStart:
-			gamestate = WaitStart;
+	switch(FruitState){
+		case NoFruit:
+			FruitState = CreateFruit;
 			break;
-		case Gameon:
+		case CreateFruit:
+			
 			break;
-		default:
-			gamestate = WaitStart;
+		case Wait:
+			break;
+		case Lose:
 			break;
 	}
 	
-	switch(gamestate){
-		case WaitStart:
-			HangGame = 1;
-			if(ButtonStart){
-				LCD_DisplayString(1, string2);
-			}
-			if(ButtonReset){
-				LCD_DisplayString(1, string1);
-			}
+	switch(FruitState){
+		case NoFruit:
 			break;
-		case Gameon:
-			HangGame = 0;
-			LCD_DisplayString(1, string1);
-			//Add Reset Shit as you go
-			bladeX = 1;
-			bladeY = 1;
-		break;
+		case CreateFruit:
+			break;
+		case Wait:
+			break;
+		case Lose:
+			break;
 	}
 };
 
-enum States{Init, ReadYAnalogInput, ReadXAnalogInput} state;
+enum GameStates{WaitStart, ButtonDown1, ButtonDown2, Gameon} gamestate;
+void StartTick(){
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("WaitStart");
+	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("GameOn");
+	
+	ButtonState = ~PIND & 0x10;
+	
+	switch(gamestate){
+		case WaitStart:
+			if(ButtonState)
+				gamestate = ButtonDown1;
+			else
+				gamestate = WaitStart;
+			break;
+		case ButtonDown1:
+			if(ButtonState)
+				gamestate = ButtonDown1;
+			else
+				gamestate = Gameon;
+			break;
+		case Gameon:
+			if(ButtonState)
+				gamestate = ButtonDown2;
+			else
+				gamestate = Gameon;
+			break;
+		case ButtonDown2:
+			if(ButtonState)
+				gamestate = ButtonDown2;
+			else
+				gamestate = WaitStart;
+			break;
+	}
+	
+	switch(gamestate){
+		case WaitStart:
+			//Add Reset Shit as you go
+			LCD_ClearScreen();
+			LCD_DisplayString(1, string1);
+			HangGame = 1;
+			UnlightLED();
+			bladeX = 1;
+			bladeY = 1;
+			break;
+		case Gameon:
+			LCD_ClearScreen();
+			HangGame = 0;
+			LCD_DisplayString(1, string2);
+			break;
+		case ButtonDown1:
+			break;
+		case ButtonDown2:
+			break;
+	}
+}
+
+enum States{Init} state;
 void JoystickTick()
 {
 	const unsigned char* string = reinterpret_cast<const unsigned char *>("Score: ");
@@ -225,43 +304,43 @@ void JoystickTick()
 	switch(state)
 	{
 		case Init:
-			x = readadc(4);
-			y = readadc(5);
-			if(x > 800) {
-				//LCD_DisplayString(1, string1);
-				if(bladeX < 8) bladeX += 1;
-			}
-			else if (x < 200){
-				//LCD_DisplayString(1, string2);
-				if(bladeX > 1) bladeX -= 1;
-			}
-			else{
-				//LCD_ClearScreen();
-			}
-			
-			if(y > 800) {
-				//LCD_DisplayString(1, string4);
-				if(bladeY > 1 )bladeY -= 1;
-			}
-			else if (y < 200){
-				//LCD_DisplayString(1, string3);
-				if(bladeY < 8) bladeY += 1;
-			}
-			
-			//LCD_Cursor(1);
-			//LCD_DisplayString(1, string);
-			//LCD_WriteData('0' + ((score % 1000) / 100));
-			//LCD_WriteData('0' + ((score % 100) / 10));
-			//LCD_WriteData('0' + ((score % 10)));
-			set_PWM(329.63);
+		x = readadc(4);
+		y = readadc(5);
+		if(x > 800) {
+			//LCD_DisplayString(1, string1);
+			if(bladeX < 8) bladeX += 1;
+		}
+		else if (x < 200){
+			//LCD_DisplayString(1, string2);
+			if(bladeX > 1) bladeX -= 1;
+		}
+		else{
+			//LCD_ClearScreen();
+		}
+		
+		if(y > 800) {
+			//LCD_DisplayString(1, string4);
+			if(bladeY > 1 )bladeY -= 1;
+		}
+		else if (y < 200){
+			//LCD_DisplayString(1, string3);
+			if(bladeY < 8) bladeY += 1;
+		}
+		
+		//LCD_Cursor(1);
+		//LCD_DisplayString(1, string);
+		//LCD_WriteData('0' + ((score % 1000) / 100));
+		//LCD_WriteData('0' + ((score % 100) / 10));
+		//LCD_WriteData('0' + ((score % 10)));
+		set_PWM(329.63);
 		
 		break;
 	}
-};
+}
 
 enum displayStates{Init1} displayState;
 void DisplayTick(){
-	unsigned const char numDisplay = 2;
+	unsigned const char numDisplay = 3;
 	static unsigned char i = 0;
 	
 	switch(displayState){
@@ -273,30 +352,33 @@ void DisplayTick(){
 	switch(displayState){
 		case Init1:
 		
-			if(i == 0){
-				UnlightLED();
-				LightLED(bladeX, bladeY);
-			}
-			else if(i == 1){
-				UnlightLED();
-				LightLED(8,8);
-			}
-			i++;
-			if(i >= numDisplay) i = 0;
-		
+		if(i == 0){
+			UnlightLED();
+			LightLED(bladeX, bladeY);
+		}
+		else if(i == 1){
+			UnlightLED();
+			LightLED(8,8);
+		}
+		else if(i == 2){
+			//UnlightLED();
+			//LightBlock(2,8);
+		}
+		i++;
+		if(i >= numDisplay) i = 0;
 		break;
 	}
-};
+}
 
 
 int main(void)
 {
 	DDRB = 0xFF; PORTB = 0xFF;
 	DDRC = 0xFF; PORTC = 0x00;
-	DDRD = 0xFF; PORTD = 0x00;
+	DDRD = 0xEF; PORTD = 0x10;
 	DDRA = 0x0F; PORTA = 0xF0;
 	
-	unsigned char systemPeriod = 2;
+	unsigned char systemPeriod = 1;
 	
 	InitADC();
 	TimerSet(systemPeriod);
@@ -307,24 +389,33 @@ int main(void)
 	state = Init;
 	displayState = Init1;
 	gamestate = WaitStart;
+	FruitState = NoFruit;
 	
-	unsigned long elapsedTime1 = 2;
+	unsigned long elapsedTime1 = 1;
 	unsigned long elapsedTime2 = 100;
-	unsigned long elapsedTime3 = 100;
+	unsigned long elapsedTime3 = 150;
+	unsigned long elapsedTime4 = 150;
 	
 	while(1)
-	{	
-		if(elapsedTime1 >= 2){
-			DisplayTick();
-			elapsedTime1 = 0;
-		}
-		if(elapsedTime2 >= 100){
-			JoystickTick();
-			elapsedTime2 = 0;
-		}
-		if(elapsedTime3 >= 100){
+	{
+		if(elapsedTime3 >= 150){
 			StartTick();
 			elapsedTime3 = 0;
+		}
+		
+		if(!HangGame){
+			if(elapsedTime1 >= 1){
+				DisplayTick();
+				elapsedTime1 = 0;
+			}
+			if(elapsedTime2 >= 100){
+				JoystickTick();
+				elapsedTime2 = 0;
+			}
+			if(elapsedTime4 >= 150){
+				FruitTick();
+				elapsedTime4 = 0;
+			}
 		}
 		
 		while (!TimerFlag);
@@ -333,5 +424,6 @@ int main(void)
 		elapsedTime1 = elapsedTime1 + systemPeriod;
 		elapsedTime2 = elapsedTime2 + systemPeriod;
 		elapsedTime3 = elapsedTime3 + systemPeriod;
+		elapsedTime4 = elapsedTime4 + systemPeriod;
 	}
 }
