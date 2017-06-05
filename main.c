@@ -323,6 +323,8 @@ void BlockUpdateTick(){
 enum FruitStates{CreateFruit, Wait, FruitLose} FruitState;
 void FruitTick(){
 	static unsigned char randSpawn = 0;
+	static unsigned char spawner = 20;
+	
 	switch(FruitState){
 		case CreateFruit:
 			FruitState = Wait;
@@ -354,10 +356,18 @@ void FruitTick(){
 					misses++;
 				}
 			}
-			randSpawn = rand() % 20;
+			randSpawn = rand() % spawner;
+			if(score > 30)
+				spawner = 5;
+			else if(score > 20)
+				spawner = 10;
+			else if(score > 10)
+				spawner = 15;
+			else
+				spawner = 20;
 			break;
 		case FruitLose:
-		break;
+			break;
 	}
 };
 
