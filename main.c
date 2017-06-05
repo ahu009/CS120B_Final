@@ -163,14 +163,12 @@ void TimerSet(unsigned long M) {
 
 void UnlightLED()
 {
-	transmit_data(0x00);
 	transmit_data_blue(0xFF);
 	return;
 }
 
 void UnlightLEDred()
 {
-	transmit_data(0x00);
 	transmit_data_red(0xFF);
 	return;
 }
@@ -238,10 +236,10 @@ unsigned char ComputeFruitCollision(fruit Fruit){
 unsigned char ComputeFruitMiss(fruit Fruit){
 	unsigned char fruitMiss = 0;
 	if(Fruit.available)
-		return fruitMiss;
+	return fruitMiss;
 	if(Fruit.y1 <= 0)
-		fruitMiss = 1;
-		return fruitMiss;
+	fruitMiss = 1;
+	return fruitMiss;
 }
 
 void KillFruit(fruit &Fruit){
@@ -397,10 +395,18 @@ void FruitTick(){
 
 enum GameStates{WaitStart, ButtonDown1, ButtonDown2, Gameon, SetSeed} gamestate;
 void StartTick(){
-	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Press Start");
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("WaitStart");
+	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("ButtonDown1");
+	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("ButtonDown2");
+	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("GameOn");
+	
+	
+	
+	
+	
 	static unsigned char i = 0;
 	
-	ButtonState = ~PIND & 0x10;
+	ButtonState = ~PINB & 0x10;
 	
 	switch(gamestate){
 		case WaitStart:
@@ -419,12 +425,12 @@ void StartTick(){
 			gamestate = Gameon;
 			break;
 		case Gameon:
-// 			if(ButtonState)
-// 				gamestate = ButtonDown2;
-// 			if(lost)
-// 				gamestate = WaitStart;
-// 			if(!ButtonState && !lost)
-				gamestate = WaitStart;
+		 	if(ButtonState)
+		 		gamestate = ButtonDown2;
+			else if(lost)
+		 		gamestate = WaitStart;
+			else
+				gamestate = Gameon;
 			break;
 		case ButtonDown2:
 			if(ButtonState)
@@ -439,12 +445,12 @@ void StartTick(){
 	
 	switch(gamestate){
 		case WaitStart:
-		//Add Reset Shit as you go
+			//Add Reset Shit as you go
 			LCD_ClearScreen();
 			LCD_DisplayString(1, string1);
 			ClearFruit();
 			HangGame = 1;
-			UnlightLED();
+			//UnlightLED();
 			lost = 0;
 			bladeX = 1;
 			bladeY = 1;
@@ -454,6 +460,9 @@ void StartTick(){
 			i++;
 			break;
 		case Gameon:
+			LCD_ClearScreen();
+			LCD_DisplayString(1, string4);
+			lost = 0;
 			i = 0;
 			start = 1;
 			HangGame = 0;
@@ -462,8 +471,12 @@ void StartTick(){
 			srand(i);
 			break;
 		case ButtonDown1:
+			LCD_ClearScreen();
+			LCD_DisplayString(1, string2);
 			break;
 		case ButtonDown2:
+			LCD_ClearScreen();
+			LCD_DisplayString(1, string3);
 			break;
 	}
 }
@@ -530,26 +543,27 @@ void DisplayTick(){
 	switch(displayState){
 		case Init1:
 		UnlightLED();
+		UnlightLEDred();
 		LightLED(bladeX, bladeY);
 		i = 0;
 		break;
 		
 		case Init2:
-			while(fruits[i].available){
-				i++;
-				if(i >= 6){
-					break;
-				}
-			}
-			UnlightLED();
-			LightBlock(fruits[i].x1, fruits[i].y1);
+		while(fruits[i].available){
 			i++;
-			break;
+			if(i >= 6){
+				break;
+			}
+		}
+		UnlightLED();
+		UnlightLEDred();
+		LightBlock(fruits[i].x1, fruits[i].y1);
+		i++;
+		break;
 		
 		case Init3:
- 			//UnlightLED();
- 			UnlightLEDred();
- 			//LightLEDred(8,8);
+			UnlightLED();
+			LightLEDred(8,8);
 			break;
 	}
 }
@@ -560,14 +574,15 @@ void LCDTick(){
 	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Score:       X");
 	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("Score:       XX");
 	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("Score:       XXX");
+	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("YOU LSOT BITCH ");
 	
 	switch(LCDState){
 		case Nothing:
-			if(start)
-				LCDState = DisplayScore;
-			else
-				LCDState = Nothing;
-			break;
+		if(start)
+		LCDState = DisplayScore;
+		else
+		LCDState = Nothing;
+		break;
 		case DisplayScore:
 		if(misses >= 3){
 			LCDState = Lose;
@@ -575,9 +590,9 @@ void LCDTick(){
 		else
 		LCDState = DisplayScore;
 		break;
-			case Lose:
-				LCDState = Nothing;
-				break;
+		case Lose:
+		LCDState = Nothing;
+		break;
 	}
 	
 	switch(LCDState){
@@ -602,8 +617,11 @@ void LCDTick(){
 		break;
 		
 		case Lose:
+			UnlightLED();
+			UnlightLEDred();
+			LightLEDred(1,8);
 			lost = 1;
-			break;
+		break;
 		
 		case Nothing:
 		break;
