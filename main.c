@@ -168,6 +168,13 @@ void UnlightLED()
 	return;
 }
 
+void UnlightLEDred()
+{
+	transmit_data(0x00);
+	transmit_data_red(0xFF);
+	return;
+}
+
 void LightLED(unsigned char x, unsigned char y)
 {
 	unsigned char column_val = 0x80;
@@ -182,6 +189,23 @@ void LightLED(unsigned char x, unsigned char y)
 	
 	transmit_data(column_val);
 	transmit_data_blue(column_sel);
+	return;
+}
+
+void LightLEDred(unsigned char x, unsigned char y)
+{
+	unsigned char column_val = 0x80;
+	unsigned char column_sel = 0x7F;
+	
+	for(int i = 1; i < x; i++){
+		column_sel = (column_sel >> 1) | 0x80;
+	}
+	for(int i = 1; i < y; i++){
+		column_val = column_val >> 1;
+	}
+	
+	transmit_data(column_val);
+	transmit_data_red(column_sel);
 	return;
 }
 
@@ -204,7 +228,7 @@ void LightBlock(unsigned char x, unsigned char y){
 unsigned char ComputeFruitCollision(fruit Fruit){
 	unsigned char fruitHit = 0;
 	if(Fruit.available)
-		return fruitHit;
+	return fruitHit;
 	if(Fruit.x1 == bladeX || Fruit.x2 == bladeX)
 	if(Fruit.y1 == bladeY || Fruit.y2 == bladeY || (Fruit.y1 + 1) == bladeY || (Fruit.y2 + 1) == bladeY)
 	fruitHit = 1;
@@ -217,12 +241,12 @@ unsigned char ComputeFruitMiss(fruit Fruit){
 		return fruitMiss;
 	if(Fruit.y1 <= 0)
 		fruitMiss = 1;
-	return fruitMiss;
+		return fruitMiss;
 }
 
 void KillFruit(fruit &Fruit){
 	if(Fruit.available)
-		return;
+	return;
 	Fruit.available = 1;
 	Fruit.x1 = 100;
 	Fruit.y1 = 100;
@@ -241,15 +265,15 @@ void ClearFruit(){
 		fruits[i].y1 = 100;
 		fruits[i].y2 = 100;
 		fruits[i].speed = 0;
-		fruits[i].pattern = 0;		
+		fruits[i].pattern = 0;
 	}
 	return;
 }
 
 //IMPORTANT: ADD DIFFERENT PATTERNS LATER
-void UpdateFruit(fruit &Fruit){ 
+void UpdateFruit(fruit &Fruit){
 	if(Fruit.available)
-		return;
+	return;
 	Fruit.y1 -= Fruit.speed;
 	Fruit.y2 -= Fruit.speed;
 	return;
@@ -257,7 +281,7 @@ void UpdateFruit(fruit &Fruit){
 
 void UpdateBomb(bomb &Bomb){
 	if(Bomb.available)
-		return;
+	return;
 	return;
 }
 
@@ -285,38 +309,38 @@ void BlockUpdateTick(){
 	
 	switch(BlockState){
 		case Update:
-			BlockState = WaitBlock;
-			break;
+		BlockState = WaitBlock;
+		break;
 		case WaitBlock:
-			if(i <= 0){
-				BlockState = Update;
-			}
-			else{
-				BlockState = WaitBlock;
-			}
-			break;
+		if(i <= 0){
+			BlockState = Update;
+		}
+		else{
+			BlockState = WaitBlock;
+		}
+		break;
 	}
 	
 	switch(BlockState){
 		case Update:
-			for(int j = 0; j < 7; j++){
-				UpdateFruit(fruits[j]);
-				//UpdateBomb(bombs[j]);
-			}
-			i = 10;
-			break;
+		for(int j = 0; j < 7; j++){
+			UpdateFruit(fruits[j]);
+			//UpdateBomb(bombs[j]);
+		}
+		i = 10;
+		break;
 		case WaitBlock:
-			i = i - speed;
-			
-			if(score >= 20)
-			speed = 10;
-			else if(score >= 15)
-			speed = 5;
-			else if(score >= 10)
-			speed = 2;
-			else
-			speed = 1;
-			break;
+		i = i - speed;
+		
+		if(score >= 20)
+		speed = 10;
+		else if(score >= 15)
+		speed = 5;
+		else if(score >= 10)
+		speed = 2;
+		else
+		speed = 1;
+		break;
 	}
 };
 
@@ -327,47 +351,47 @@ void FruitTick(){
 	
 	switch(FruitState){
 		case CreateFruit:
-			FruitState = Wait;
-			break;
+		FruitState = Wait;
+		break;
 		case Wait:
-			if(randSpawn == 1){
-				FruitState = CreateFruit;
-			}
-			else{
-				FruitState = Wait;
-			}
-			break;
+		if(randSpawn == 1){
+			FruitState = CreateFruit;
+		}
+		else{
+			FruitState = Wait;
+		}
+		break;
 		case FruitLose:
-			break;
+		break;
 	}
 	
 	switch(FruitState){
 		case CreateFruit:
-			GenerateFruit();
-			break;
+		GenerateFruit();
+		break;
 		case Wait:
-			for(int i = 0; i < 7; i++){
-				if(ComputeFruitCollision(fruits[i])){
-					KillFruit(fruits[i]);
-					score++;
-				}
-				if(ComputeFruitMiss(fruits[i])){
-					KillFruit(fruits[i]);
-					misses++;
-				}
+		for(int i = 0; i < 7; i++){
+			if(ComputeFruitCollision(fruits[i])){
+				KillFruit(fruits[i]);
+				score++;
 			}
-			randSpawn = rand() % spawner;
-			if(score > 30)
-				spawner = 5;
-			else if(score > 20)
-				spawner = 10;
-			else if(score > 10)
-				spawner = 15;
-			else
-				spawner = 20;
-			break;
+			if(ComputeFruitMiss(fruits[i])){
+				KillFruit(fruits[i]);
+				misses++;
+			}
+		}
+		randSpawn = rand() % spawner;
+		if(score > 30)
+		spawner = 5;
+		else if(score > 20)
+		spawner = 10;
+		else if(score > 10)
+		spawner = 15;
+		else
+		spawner = 20;
+		break;
 		case FruitLose:
-			break;
+		break;
 	}
 };
 
@@ -395,12 +419,12 @@ void StartTick(){
 			gamestate = Gameon;
 			break;
 		case Gameon:
-			if(ButtonState)
-				gamestate = ButtonDown2;
-			else if(lost)
+// 			if(ButtonState)
+// 				gamestate = ButtonDown2;
+// 			if(lost)
+// 				gamestate = WaitStart;
+// 			if(!ButtonState && !lost)
 				gamestate = WaitStart;
-			else
-				gamestate = Gameon;
 			break;
 		case ButtonDown2:
 			if(ButtonState)
@@ -408,11 +432,14 @@ void StartTick(){
 			else
 				gamestate = WaitStart;
 			break;
+		default:
+			gamestate = WaitStart;
+			break;
 	}
 	
 	switch(gamestate){
 		case WaitStart:
-			//Add Reset Shit as you go
+		//Add Reset Shit as you go
 			LCD_ClearScreen();
 			LCD_DisplayString(1, string1);
 			ClearFruit();
@@ -478,30 +505,34 @@ void JoystickTick()
 	}
 }
 
-enum displayStates{Init1, Init2} displayState;
+enum displayStates{Init1, Init2, Init3} displayState;
 void DisplayTick(){
 	static unsigned char i = 0;
 	//static unsigned char j = 0;
 	
 	switch(displayState){
 		case Init1:
-			displayState = Init2;
-			break;
+		displayState = Init2;
+		break;
 		
 		case Init2:
-			if(i <= 6)
-				displayState = Init2;
-			else
-				displayState = Init1;
-			break;
+		if(i <= 6)
+		displayState = Init2;
+		else
+		displayState = Init3;
+		break;
+		
+		case Init3:
+		displayState = Init1;
+		break;
 	}
 	
 	switch(displayState){
 		case Init1:
-			UnlightLED();
-			LightLED(bladeX, bladeY);
-			i = 0;
-			break;
+		UnlightLED();
+		LightLED(bladeX, bladeY);
+		i = 0;
+		break;
 		
 		case Init2:
 			while(fruits[i].available){
@@ -513,6 +544,12 @@ void DisplayTick(){
 			UnlightLED();
 			LightBlock(fruits[i].x1, fruits[i].y1);
 			i++;
+			break;
+		
+		case Init3:
+ 			//UnlightLED();
+ 			UnlightLEDred();
+ 			//LightLEDred(8,8);
 			break;
 	}
 }
@@ -532,50 +569,50 @@ void LCDTick(){
 				LCDState = Nothing;
 			break;
 		case DisplayScore:
-			if(misses >= 3){
-				LCDState = Lose;
-			}
-			else
-				LCDState = DisplayScore;
-			break;
-		case Lose:
-			LCDState = Nothing;
-			break;
+		if(misses >= 3){
+			LCDState = Lose;
+		}
+		else
+		LCDState = DisplayScore;
+		break;
+			case Lose:
+				LCDState = Nothing;
+				break;
 	}
 	
 	switch(LCDState){
 		case DisplayScore:
-			LCD_ClearScreen();
-			if(misses == 1){
-				LCD_DisplayString(1, string1);
-			}
-			else if(misses == 2){
-				LCD_DisplayString(1, string2);
-			}
-			else if(misses >= 3){
-				LCD_DisplayString(1, string3);
-			}
-			else{
-				LCD_DisplayString(1, string);
-			}
-			LCD_Cursor(8);
-			LCD_WriteData('0' + ((score % 1000) / 100));
-			LCD_WriteData('0' + ((score % 100) / 10));
-			LCD_WriteData('0' + ((score % 10)));
-			break;
-			
+		LCD_ClearScreen();
+		if(misses == 1){
+			LCD_DisplayString(1, string1);
+		}
+		else if(misses == 2){
+			LCD_DisplayString(1, string2);
+		}
+		else if(misses >= 3){
+			LCD_DisplayString(1, string3);
+		}
+		else{
+			LCD_DisplayString(1, string);
+		}
+		LCD_Cursor(8);
+		LCD_WriteData('0' + ((score % 1000) / 100));
+		LCD_WriteData('0' + ((score % 100) / 10));
+		LCD_WriteData('0' + ((score % 10)));
+		break;
+		
 		case Lose:
 			lost = 1;
 			break;
-			
+		
 		case Nothing:
-			break;
+		break;
 	}
 };
 
 int main(void)
 {
-	DDRB = 0xFF; PORTB = 0xFF;
+	DDRB = 0xEF; PORTB = 0x10;
 	DDRC = 0xFF; PORTC = 0x00;
 	DDRD = 0xEF; PORTD = 0x10;
 	DDRA = 0x0F; PORTA = 0xF0;
