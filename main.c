@@ -5,6 +5,7 @@
 
 unsigned char HangGame = 0;
 unsigned char ButtonState;
+unsigned char ButtonState1;
 volatile unsigned char TimerFlag = 0;
 unsigned long _avr_timer_M = 1;
 unsigned long _avr_timer_cntcurr = 0;
@@ -369,7 +370,7 @@ void FruitTick(){
 		break;
 		case Wait:
 		for(int i = 0; i < 7; i++){
-			if(ComputeFruitCollision(fruits[i])){
+			if(ComputeFruitCollision(fruits[i])){   
 				KillFruit(fruits[i]);
 				score++;
 			}
@@ -399,14 +400,11 @@ void StartTick(){
 	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("ButtonDown1");
 	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("ButtonDown2");
 	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("GameOn");
-	
-	
-	
-	
-	
+
 	static unsigned char i = 0;
 	
-	ButtonState = ~PINB & 0x10;
+	ButtonState = ~PIND & 0x20;
+	//ButtonState1 = ~PIND & 0x20;
 	
 	switch(gamestate){
 		case WaitStart:
@@ -414,6 +412,7 @@ void StartTick(){
 				gamestate = ButtonDown1;
 			else
 				gamestate = WaitStart;
+			//gamestate = SetSeed;
 			break;
 		case ButtonDown1:
 			if(ButtonState)
@@ -425,10 +424,10 @@ void StartTick(){
 			gamestate = Gameon;
 			break;
 		case Gameon:
-		 	if(ButtonState)
+			if(lost)
+				gamestate = WaitStart;
+		 	else if(ButtonState)
 		 		gamestate = ButtonDown2;
-			else if(lost)
-		 		gamestate = WaitStart;
 			else
 				gamestate = Gameon;
 			break;
@@ -450,7 +449,8 @@ void StartTick(){
 			LCD_DisplayString(1, string1);
 			ClearFruit();
 			HangGame = 1;
-			//UnlightLED();
+			UnlightLED();
+			//UnlightLEDred();
 			lost = 0;
 			bladeX = 1;
 			bladeY = 1;
@@ -466,6 +466,10 @@ void StartTick(){
 			i = 0;
 			start = 1;
 			HangGame = 0;
+			LCD_Cursor(8);
+			LCD_WriteData('0' + (ButtonState));
+			//LCD_Cursor(9);
+			//LCD_WriteData('0' + (ButtonState1));
 			break;
 		case SetSeed:
 			srand(i);
@@ -563,6 +567,7 @@ void DisplayTick(){
 		
 		case Init3:
 			UnlightLED();
+			UnlightLEDred();
 			LightLEDred(8,8);
 			break;
 	}
@@ -597,29 +602,29 @@ void LCDTick(){
 	
 	switch(LCDState){
 		case DisplayScore:
-		LCD_ClearScreen();
+		//LCD_ClearScreen();
 		if(misses == 1){
-			LCD_DisplayString(1, string1);
+		//	LCD_DisplayString(1, string1);
 		}
 		else if(misses == 2){
-			LCD_DisplayString(1, string2);
+		//	LCD_DisplayString(1, string2);
 		}
 		else if(misses >= 3){
-			LCD_DisplayString(1, string3);
+		//	LCD_DisplayString(1, string3);
 		}
 		else{
-			LCD_DisplayString(1, string);
+	//		LCD_DisplayString(1, string);
 		}
-		LCD_Cursor(8);
-		LCD_WriteData('0' + ((score % 1000) / 100));
-		LCD_WriteData('0' + ((score % 100) / 10));
-		LCD_WriteData('0' + ((score % 10)));
+// 		LCD_Cursor(8);
+// 		LCD_WriteData('0' + ((score % 1000) / 100));
+// 		LCD_WriteData('0' + ((score % 100) / 10));
+// 		LCD_WriteData('0' + ((score % 10)));
 		break;
 		
 		case Lose:
-			UnlightLED();
-			UnlightLEDred();
-			LightLEDred(1,8);
+			//UnlightLED();
+			//UnlightLEDred();
+			//LightLEDred(1,8);
 			lost = 1;
 		break;
 		
@@ -630,9 +635,9 @@ void LCDTick(){
 
 int main(void)
 {
-	DDRB = 0xEF; PORTB = 0x10;
+	DDRB = 0xCF; PORTB = 0x20;
 	DDRC = 0xFF; PORTC = 0x00;
-	DDRD = 0xEF; PORTD = 0x10;
+	DDRD = 0xCF; PORTD = 0x20;
 	DDRA = 0x0F; PORTA = 0xF0;
 	
 	unsigned char systemPeriod = 1;
