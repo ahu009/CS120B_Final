@@ -2,4 +2,4 @@
 4. Finish Bomb Control (Pretty much same shit) << 
 5. Finish Buzzer << 
 6. Finish Lose Screen
-7. Get the motherfuckin red LEDs to work
+7. Make it it so that you dont get fucking seziures everytime you play. 
