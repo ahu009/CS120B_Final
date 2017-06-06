@@ -19,6 +19,8 @@ unsigned char start = 0;
 unsigned char ButtonState;
 unsigned char ButtonState1;
 
+
+
 uint16_t  x = 0;
 uint16_t y = 0;
 
@@ -391,10 +393,10 @@ void GenerateBomb(){
 
 void FilterBomb(){
 	for(int i = 0; i < 7; i++)
-		for(int j = 0; j < 7; j++)
-			if(bombs[i].x1 == fruits[j].x1)
-				KillBomb(bombs[i]);
-	
+	for(int j = 0; j < 7; j++)
+	if(bombs[i].x1 == fruits[j].x1)
+	KillBomb(bombs[i]);
+	return;
 }
 
 //IMPORTANT: Change later to increase speed
@@ -447,7 +449,7 @@ void BombTick(){
 	
 	switch(BombState){
 		case CreateBomb:
-			BombState = WaitBomb;
+		BombState = WaitBomb;
 		break;
 		case WaitBomb:
 		if(randSpawn == 1){
@@ -461,28 +463,28 @@ void BombTick(){
 	
 	switch(BombState){
 		case CreateBomb:
-			GenerateBomb();
-			break;
+		GenerateBomb();
+		break;
 		case WaitBomb:
-			FilterBomb();
-			for(int i = 0; i < 7; i++){
-				if(ComputeBombCollision(bombs[i])){
-					bomblost = 1;
-				}
-				if(ComputeBombMiss(bombs[i])){
-					KillBomb(bombs[i]);
-				}
+		//FilterBomb();
+		for(int i = 0; i < 7; i++){
+			if(ComputeBombCollision(bombs[i])){
+				bomblost = 1;
 			}
-			randSpawn = rand() % spawner;
-			if(score > 30)
-			spawner = 40;
-			else if(score > 20)
-			spawner = 50;
-			else if(score > 10)
-			spawner = 60;
-			else
-			spawner = 70;
-			break;
+			if(ComputeBombMiss(bombs[i])){
+				KillBomb(bombs[i]);
+			}
+		}
+		randSpawn = rand() % spawner;
+		if(score > 30)
+		spawner = 40;
+		else if(score > 20)
+		spawner = 50;
+		else if(score > 10)
+		spawner = 60;
+		else
+		spawner = 70;
+		break;
 	}
 };
 
@@ -493,8 +495,8 @@ void FruitTick(){
 	
 	switch(FruitState){
 		case CreateFruit:
-			FruitState = Wait;
-			break;
+		FruitState = Wait;
+		break;
 		case Wait:
 		if(randSpawn == 1){
 			FruitState = CreateFruit;
@@ -507,44 +509,47 @@ void FruitTick(){
 	
 	switch(FruitState){
 		case CreateFruit:
-			GenerateFruit();
-			break;
+		GenerateFruit();
+		break;
 		case Wait:
-			for(int i = 0; i < 7; i++){
-				if(ComputeFruitCollision(fruits[i])){
-					KillFruit(fruits[i]);
-					score++;
-				}
-				if(ComputeFruitMiss(fruits[i])){
-					KillFruit(fruits[i]);
-					misses++;
-				}
+		set_PWM(0);
+		for(int i = 0; i < 7; i++){
+			if(ComputeFruitCollision(fruits[i])){
+				KillFruit(fruits[i]);
+				score++;
+				set_PWM(329.63);
 			}
-			randSpawn = rand() % spawner;
-			if(score > 30)
-			spawner = 5;
-			else if(score > 20)
-			spawner = 10;
-			else if(score > 10)
-			spawner = 15;
-			else
-			spawner = 20;
-			break;
+			if(ComputeFruitMiss(fruits[i])){
+				KillFruit(fruits[i]);
+				misses++;
+			}
+		}
+		randSpawn = rand() % spawner;
+		if(score > 30)
+		spawner = 5;
+		else if(score > 20)
+		spawner = 10;
+		else if(score > 10)
+		spawner = 15;
+		else
+		spawner = 20;
+		break;
 	}
 };
 
-enum GameStates{WaitStart, Gameon, SetSeed} gamestate;
+enum GameStates{WaitStart, Gameon, SetSeed, LoseScreen} gamestate;
 void StartTick(){
 	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Red Dot To Begin");
-
+	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("You Lost xD");
+	static unsigned char j = 0;
 	static unsigned char i = 0;
 	
 	switch(gamestate){
 		case WaitStart:
 		if(ButtonState)
-		gamestate = SetSeed;
+			gamestate = SetSeed;
 		else
-		gamestate = WaitStart;
+			gamestate = WaitStart;
 		break;
 		
 		case SetSeed:
@@ -555,7 +560,8 @@ void StartTick(){
 		
 		case Gameon:
 		if(lost || bomblost){
-			gamestate = WaitStart;
+			gamestate = LoseScreen;
+			HangGame = 1;
 			bladeX = 1;
 			bladeY = 1;
 		}
@@ -569,12 +575,21 @@ void StartTick(){
 		}
 		break;
 		
+		case LoseScreen:
+			if(j <= 10)
+				gamestate = LoseScreen;
+			else
+				gamestate = WaitStart;
+			break;
+		
 		default:
 		break;
 	}
 	
 	switch(gamestate){
 		case WaitStart:
+		j = 0;
+		set_PWM(0);
 		LCD_ClearScreen();
 		LCD_DisplayString(1, string1);
 		ClearFruitBomb();
@@ -593,6 +608,12 @@ void StartTick(){
 		break;
 		case SetSeed:
 		srand(i);
+		break;
+		case LoseScreen:
+		j++;
+		LCD_ClearScreen();
+		LCD_DisplayString(1, string2);
+		set_PWM(100.63);
 		break;
 	}
 }
@@ -628,7 +649,6 @@ void JoystickTick()
 		else if (y < 200){
 			if(bladeY < 8) bladeY += 1;
 		}
-		set_PWM(329.63);
 		
 		break;
 	}
@@ -671,17 +691,17 @@ void DisplayTick(){
 		break;
 		
 		case Init2:
-			while(fruits[i].available){
-				i++;
-				if(i >= 6){
-			 		break;
-				 }
-			}
-			UnlightLED();
-			UnlightLEDred();
-			LightBlock(fruits[i].x1, fruits[i].y1);
+		while(fruits[i].available){
 			i++;
-		 break;
+			if(i >= 6){
+				break;
+			}
+		}
+		UnlightLED();
+		UnlightLEDred();
+		LightBlock(fruits[i].x1, fruits[i].y1);
+		i++;
+		break;
 		
 		case Init3:
 		UnlightLED();
