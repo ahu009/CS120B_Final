@@ -4,8 +4,7 @@
 #include "io.c"
 
 unsigned char HangGame = 0;
-unsigned char ButtonState;
-unsigned char ButtonState1;
+
 volatile unsigned char TimerFlag = 0;
 unsigned long _avr_timer_M = 1;
 unsigned long _avr_timer_cntcurr = 0;
@@ -15,6 +14,8 @@ unsigned char score = 0;
 unsigned char misses = 0;
 unsigned char lost = 0;
 unsigned char start = 0;
+
+unsigned char ButtonState;
 
 uint16_t  x = 0;
 uint16_t y = 0;
@@ -54,44 +55,56 @@ uint16_t readadc(uint8_t ch)
 //Driver for Joystick Ends Here
 
 //Shift Register Transmit Data Functions Taken from Supplemental Lab (Modified)
-void transmit_data_red(unsigned char data) {
+void transmit_data(unsigned char data) {
 	int i;
-	for (i = 0; i < 8 ; ++i) {
-		PORTD = 0x08;
-		PORTD |= ((data >> i) & 0x01);
-		PORTD |= 0x02;
+	for (i = 0; i < 8; ++i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTB = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTB |= (((data >> i) & 0x01));
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTB |= 0x02;
 	}
-	PORTD |= 0x04;
-	PORTD = 0x00;
+	// set RCLK = 1. Rising edge copies data from the “Shift” register to the
+	//“Storage” register
+	PORTB |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTB = 0x00;
 }
 
 void transmit_data_blue(unsigned char data) {
 	int i;
 	for (i = 0; i < 8 ; ++i) {
-		PORTA = 0x08;
-
-		PORTA |= ((data >> i) & 0x01);
-
-		PORTA |= 0x02;
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTD = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTD |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTD |= 0x02;
 	}
-
-	PORTA |= 0x04;
-	PORTA = 0x00;
+	// set RCLK = 1. Rising edge copies data from the “Shift” register to the
+	//“Storage” register
+	PORTD |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTD = 0x00;
 }
 
-void transmit_data(unsigned char data) {
+void transmit_data_red(unsigned char data) {
 	int i;
 	for (i = 0; i < 8 ; ++i) {
-		PORTB = 0x08;
-		
-		PORTB |= ((data >> i) & 0x01);
-
-		PORTB |= 0x02;
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTA = 0x08;
+		PORTA |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTA |= 0x02;
 	}
-
-	PORTB |= 0x04;
-	
-	PORTB = 0x00;
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTA |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTA = 0x00;
 }
 //Shift register transmit data functions end here
 
@@ -370,7 +383,7 @@ void FruitTick(){
 		break;
 		case Wait:
 		for(int i = 0; i < 7; i++){
-			if(ComputeFruitCollision(fruits[i])){   
+			if(ComputeFruitCollision(fruits[i])){
 				KillFruit(fruits[i]);
 				score++;
 			}
@@ -394,49 +407,42 @@ void FruitTick(){
 	}
 };
 
-enum GameStates{WaitStart, ButtonDown1, ButtonDown2, Gameon, SetSeed} gamestate;
+enum GameStates{WaitStart, Gameon, SetSeed} gamestate;
 void StartTick(){
-	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("WaitStart");
-	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("ButtonDown1");
-	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("ButtonDown2");
-	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("GameOn");
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Red Dot To Begin");
 
 	static unsigned char i = 0;
-	
-	ButtonState = ~PIND & 0x20;
-	//ButtonState1 = ~PIND & 0x20;
 	
 	switch(gamestate){
 		case WaitStart:
 			if(ButtonState)
-				gamestate = ButtonDown1;
+				gamestate = SetSeed;
 			else
 				gamestate = WaitStart;
-			//gamestate = SetSeed;
 			break;
-		case ButtonDown1:
-			if(ButtonState)
-				gamestate = ButtonDown1;
-			else
-				gamestate = SetSeed;
-			break;
+			
 		case SetSeed:
+			bladeX = 1;
+			bladeY = 1;
 			gamestate = Gameon;
 			break;
+			
 		case Gameon:
-			if(lost)
+			if(lost){
 				gamestate = WaitStart;
-		 	else if(ButtonState)
-		 		gamestate = ButtonDown2;
-			else
+				bladeX = 1;
+				bladeY = 1;
+			}
+			else if(!ButtonState){
+				gamestate = WaitStart;
+				bladeX = 1;
+				bladeY = 1;
+			}
+			else{
 				gamestate = Gameon;
+			}
 			break;
-		case ButtonDown2:
-			if(ButtonState)
-				gamestate = ButtonDown2;
-			else
-				gamestate = WaitStart;
-			break;
+			
 		default:
 			gamestate = WaitStart;
 			break;
@@ -450,37 +456,21 @@ void StartTick(){
 			ClearFruit();
 			HangGame = 1;
 			UnlightLED();
-			//UnlightLEDred();
+			UnlightLEDred();
 			lost = 0;
-			bladeX = 1;
-			bladeY = 1;
 			start = 0;
 			score = 0;
 			misses = 0;
 			i++;
 			break;
 		case Gameon:
-			LCD_ClearScreen();
-			LCD_DisplayString(1, string4);
 			lost = 0;
 			i = 0;
 			start = 1;
 			HangGame = 0;
-			LCD_Cursor(8);
-			LCD_WriteData('0' + (ButtonState));
-			//LCD_Cursor(9);
-			//LCD_WriteData('0' + (ButtonState1));
 			break;
 		case SetSeed:
 			srand(i);
-			break;
-		case ButtonDown1:
-			LCD_ClearScreen();
-			LCD_DisplayString(1, string2);
-			break;
-		case ButtonDown2:
-			LCD_ClearScreen();
-			LCD_DisplayString(1, string3);
 			break;
 	}
 }
@@ -568,10 +558,79 @@ void DisplayTick(){
 		case Init3:
 			UnlightLED();
 			UnlightLEDred();
-			LightLEDred(8,8);
-			break;
+			LightLEDred(8,1);
+		break;
 	}
 }
+
+enum ButtonStates{ButtonOff, ButtonWait1, ButtonOn, ButtonWait2} buttonstate;
+void ButtonTick(){
+	static unsigned char i = 0;
+
+	switch(buttonstate){
+		case ButtonOff:
+			if(bladeX == 8 && bladeY == 1){
+				buttonstate = ButtonWait1;
+				i = 0;
+			}
+			else{
+				buttonstate = ButtonOff;
+			}
+			break;
+			
+		case ButtonWait1:
+			if(i >= 30){
+				//ButtonState = 1;
+				buttonstate = ButtonOn;
+			}
+			else if(bladeX == 8 && bladeY == 1){
+				buttonstate = ButtonWait1;
+			}
+			else{
+				buttonstate = ButtonOff;
+			}
+			break;
+		case ButtonOn:
+			if(bladeX == 8 && bladeY == 1){
+				i = 0;
+				buttonstate = ButtonWait2;
+			}
+			else{
+				buttonstate = ButtonOn;
+			}
+			break;
+		case ButtonWait2:
+			if(i >= 30){
+				//ButtonState = 1;
+				buttonstate = ButtonOff;
+			}
+			else if(bladeX == 8 && bladeY == 1){
+				buttonstate = ButtonWait2;
+			}
+			else{
+				buttonstate = ButtonOn;
+			}
+			break;
+	}
+
+	switch(buttonstate){
+		case ButtonOff:
+			ButtonState = 0;
+			break;
+		case ButtonWait1:
+			i++;
+			break;
+		case ButtonOn:
+			if(lost)
+				ButtonState = 0;
+			else
+				ButtonState = 1;
+			break;
+		case ButtonWait2:
+			i++;
+			break;
+	}	
+};
 
 enum LCDStates{DisplayScore, Lose, Nothing} LCDState;
 void LCDTick(){
@@ -602,30 +661,27 @@ void LCDTick(){
 	
 	switch(LCDState){
 		case DisplayScore:
-		//LCD_ClearScreen();
+		LCD_ClearScreen();
 		if(misses == 1){
-		//	LCD_DisplayString(1, string1);
+			LCD_DisplayString(1, string1);
 		}
 		else if(misses == 2){
-		//	LCD_DisplayString(1, string2);
+			LCD_DisplayString(1, string2);
 		}
 		else if(misses >= 3){
-		//	LCD_DisplayString(1, string3);
+			LCD_DisplayString(1, string3);
 		}
 		else{
-	//		LCD_DisplayString(1, string);
+			LCD_DisplayString(1, string);
 		}
-// 		LCD_Cursor(8);
-// 		LCD_WriteData('0' + ((score % 1000) / 100));
-// 		LCD_WriteData('0' + ((score % 100) / 10));
-// 		LCD_WriteData('0' + ((score % 10)));
+		LCD_Cursor(8);
+		LCD_WriteData('0' + ((score % 1000) / 100));
+		LCD_WriteData('0' + ((score % 100) / 10));
+		LCD_WriteData('0' + ((score % 10)));
 		break;
 		
 		case Lose:
-			//UnlightLED();
-			//UnlightLEDred();
-			//LightLEDred(1,8);
-			lost = 1;
+		lost = 1;
 		break;
 		
 		case Nothing:
@@ -635,7 +691,7 @@ void LCDTick(){
 
 int main(void)
 {
-	DDRB = 0xCF; PORTB = 0x20;
+	DDRB = 0xFF; PORTB = 0x00;
 	DDRC = 0xFF; PORTC = 0x00;
 	DDRD = 0xCF; PORTD = 0x20;
 	DDRA = 0x0F; PORTA = 0xF0;
@@ -654,6 +710,7 @@ int main(void)
 	FruitState = Wait;
 	BlockState = Update;
 	LCDState = Nothing;
+	buttonstate = ButtonOff;
 	
 	unsigned long elapsedTime1 = 1;
 	unsigned long elapsedTime2 = 100;
@@ -661,6 +718,7 @@ int main(void)
 	unsigned long elapsedTime4 = 100;
 	unsigned long elapsedTime5 = 100;
 	unsigned long elapsedTime6 = 250;
+	unsigned long elapsedTime7 = 100;
 	
 	while(1)
 	{
@@ -668,16 +726,20 @@ int main(void)
 			StartTick();
 			elapsedTime3 = 0;
 		}
+		if(elapsedTime1 >= 1){
+			DisplayTick();
+			elapsedTime1 = 0;
+		}
+		if(elapsedTime2 >= 100){
+			JoystickTick();
+			elapsedTime2 = 0;
+		}
+		if(elapsedTime7 >= 100){
+			ButtonTick();
+			elapsedTime7 = 0;
+		}
 		
 		if(!HangGame){
-			if(elapsedTime1 >= 1){
-				DisplayTick();
-				elapsedTime1 = 0;
-			}
-			if(elapsedTime2 >= 100){
-				JoystickTick();
-				elapsedTime2 = 0;
-			}
 			if(elapsedTime4 >= 100){
 				FruitTick();
 				elapsedTime4 = 0;
@@ -703,5 +765,6 @@ int main(void)
 		elapsedTime4 = elapsedTime4 + systemPeriod;
 		elapsedTime5 = elapsedTime5 + systemPeriod;
 		elapsedTime6 = elapsedTime6 + systemPeriod;
+		elapsedTime7 = elapsedTime7 + systemPeriod;
 	}
 }
