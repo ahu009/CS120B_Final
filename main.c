@@ -13,6 +13,7 @@ unsigned char bladeX = 1, bladeY = 1;
 unsigned char score = 0;
 unsigned char misses = 0;
 unsigned char lost = 0;
+unsigned char bomblost = 0;
 unsigned char start = 0;
 
 unsigned char ButtonState;
@@ -238,6 +239,22 @@ void LightBlock(unsigned char x, unsigned char y){
 	return;
 }
 
+void LightBlockred(unsigned char x, unsigned char y){
+	unsigned char column_val = 0xC0;
+	unsigned char column_sel = 0x3F;
+	
+	for(int i = 1; i < x; i++){
+		column_sel = (column_sel >> 1) | 0x80;
+	}
+	for(int i = 1; i < y; i++){
+		column_val = column_val >> 1;
+	}
+	
+	transmit_data(column_val);
+	transmit_data_red(column_sel);
+	return;
+}
+
 unsigned char ComputeFruitCollision(fruit Fruit){
 	unsigned char fruitHit = 0;
 	if(Fruit.available)
@@ -248,7 +265,26 @@ unsigned char ComputeFruitCollision(fruit Fruit){
 	return fruitHit;
 }
 
+unsigned char ComputeBombCollision(bomb Fruit){
+	unsigned char fruitHit = 0;
+	if(Fruit.available)
+	return fruitHit;
+	if(Fruit.x1 == bladeX || Fruit.x2 == bladeX)
+	if(Fruit.y1 == bladeY || Fruit.y2 == bladeY || (Fruit.y1 + 1) == bladeY || (Fruit.y2 + 1) == bladeY)
+	fruitHit = 1;
+	return fruitHit;
+}
+
 unsigned char ComputeFruitMiss(fruit Fruit){
+	unsigned char fruitMiss = 0;
+	if(Fruit.available)
+	return fruitMiss;
+	if(Fruit.y1 <= 0)
+	fruitMiss = 1;
+	return fruitMiss;
+}
+
+unsigned char ComputeBombMiss(bomb Fruit){
 	unsigned char fruitMiss = 0;
 	if(Fruit.available)
 	return fruitMiss;
@@ -270,7 +306,20 @@ void KillFruit(fruit &Fruit){
 	return;
 }
 
-void ClearFruit(){
+void KillBomb(bomb &Fruit){
+	if(Fruit.available)
+	return;
+	Fruit.available = 1;
+	Fruit.x1 = 100;
+	Fruit.y1 = 100;
+	Fruit.x2 = 100;
+	Fruit.y2 = 100;
+	Fruit.speed = 0;
+	Fruit.pattern = 0;
+	return;
+}
+
+void ClearFruitBomb(){
 	for(int i = 0; i < 7; i++){
 		fruits[i].available = 1;
 		fruits[i].x1 = 100;
@@ -279,6 +328,14 @@ void ClearFruit(){
 		fruits[i].y2 = 100;
 		fruits[i].speed = 0;
 		fruits[i].pattern = 0;
+		
+		bombs[i].available = 1;
+		bombs[i].x1 = 100;
+		bombs[i].x2 = 100;
+		bombs[i].y1 = 100;
+		bombs[i].y2 = 100;
+		bombs[i].speed = 0;
+		bombs[i].pattern = 0;
 	}
 	return;
 }
@@ -295,6 +352,8 @@ void UpdateFruit(fruit &Fruit){
 void UpdateBomb(bomb &Bomb){
 	if(Bomb.available)
 	return;
+	Bomb.y1 -= Bomb.speed;
+	Bomb.y2 -= Bomb.speed;
 	return;
 }
 
@@ -304,13 +363,37 @@ void GenerateFruit(){
 			fruits[i].pattern = rand() % 2;
 			fruits[i].speed = 1;
 			fruits[i].x1 = rand() % 7 + 1;
-			fruits[i].y1 = 7;
+			fruits[i].y1 = 9;
 			fruits[i].x2 = fruits[i].x1 + 1;
 			fruits[i].y2 = fruits[i].y1;
 			fruits[i].available = 0;
 			return;
 		}
 	}
+	
+}
+
+void GenerateBomb(){
+	for(int i = 0; i < 7; i++){
+		if(bombs[i].available){
+			bombs[i].pattern = rand() % 2;
+			bombs[i].speed = 1;
+			bombs[i].x1 = rand() % 7 + 1;
+			bombs[i].y1 = 9;
+			bombs[i].x2 = bombs[i].x1 + 1;
+			bombs[i].y2 = bombs[i].y1;
+			bombs[i].available = 0;
+			return;
+		}
+	}
+	
+}
+
+void FilterBomb(){
+	for(int i = 0; i < 7; i++)
+		for(int j = 0; j < 7; j++)
+			if(bombs[i].x1 == fruits[j].x1)
+				KillBomb(bombs[i]);
 	
 }
 
@@ -338,7 +421,7 @@ void BlockUpdateTick(){
 		case Update:
 		for(int j = 0; j < 7; j++){
 			UpdateFruit(fruits[j]);
-			//UpdateBomb(bombs[j]);
+			UpdateBomb(bombs[j]);
 		}
 		i = 10;
 		break;
@@ -357,15 +440,61 @@ void BlockUpdateTick(){
 	}
 };
 
-enum FruitStates{CreateFruit, Wait, FruitLose} FruitState;
+enum BombStates{CreateBomb, WaitBomb} BombState;
+void BombTick(){
+	static unsigned char randSpawn = 0;
+	static unsigned char spawner = 80;
+	
+	switch(BombState){
+		case CreateBomb:
+			BombState = WaitBomb;
+		break;
+		case WaitBomb:
+		if(randSpawn == 1){
+			BombState = CreateBomb;
+		}
+		else{
+			BombState = WaitBomb;
+		}
+		break;
+	}
+	
+	switch(BombState){
+		case CreateBomb:
+			GenerateBomb();
+			break;
+		case WaitBomb:
+			FilterBomb();
+			for(int i = 0; i < 7; i++){
+				if(ComputeBombCollision(bombs[i])){
+					bomblost = 1;
+				}
+				if(ComputeBombMiss(bombs[i])){
+					KillBomb(bombs[i]);
+				}
+			}
+			randSpawn = rand() % spawner;
+			if(score > 30)
+			spawner = 40;
+			else if(score > 20)
+			spawner = 50;
+			else if(score > 10)
+			spawner = 60;
+			else
+			spawner = 70;
+			break;
+	}
+};
+
+enum FruitStates{CreateFruit, Wait} FruitState;
 void FruitTick(){
 	static unsigned char randSpawn = 0;
 	static unsigned char spawner = 20;
 	
 	switch(FruitState){
 		case CreateFruit:
-		FruitState = Wait;
-		break;
+			FruitState = Wait;
+			break;
 		case Wait:
 		if(randSpawn == 1){
 			FruitState = CreateFruit;
@@ -374,37 +503,33 @@ void FruitTick(){
 			FruitState = Wait;
 		}
 		break;
-		case FruitLose:
-		break;
 	}
 	
 	switch(FruitState){
 		case CreateFruit:
-		GenerateFruit();
-		break;
+			GenerateFruit();
+			break;
 		case Wait:
-		for(int i = 0; i < 7; i++){
-			if(ComputeFruitCollision(fruits[i])){
-				KillFruit(fruits[i]);
-				score++;
+			for(int i = 0; i < 7; i++){
+				if(ComputeFruitCollision(fruits[i])){
+					KillFruit(fruits[i]);
+					score++;
+				}
+				if(ComputeFruitMiss(fruits[i])){
+					KillFruit(fruits[i]);
+					misses++;
+				}
 			}
-			if(ComputeFruitMiss(fruits[i])){
-				KillFruit(fruits[i]);
-				misses++;
-			}
-		}
-		randSpawn = rand() % spawner;
-		if(score > 30)
-		spawner = 5;
-		else if(score > 20)
-		spawner = 10;
-		else if(score > 10)
-		spawner = 15;
-		else
-		spawner = 20;
-		break;
-		case FruitLose:
-		break;
+			randSpawn = rand() % spawner;
+			if(score > 30)
+			spawner = 5;
+			else if(score > 20)
+			spawner = 10;
+			else if(score > 10)
+			spawner = 15;
+			else
+			spawner = 20;
+			break;
 	}
 };
 
@@ -429,7 +554,7 @@ void StartTick(){
 		break;
 		
 		case Gameon:
-		if(lost){
+		if(lost || bomblost){
 			gamestate = WaitStart;
 			bladeX = 1;
 			bladeY = 1;
@@ -454,7 +579,7 @@ void StartTick(){
 		//Add Reset Shit as you go
 		LCD_ClearScreen();
 		LCD_DisplayString(1, string1);
-		ClearFruit();
+		ClearFruitBomb();
 		HangGame = 1;
 		UnlightLED();
 		UnlightLEDred();
@@ -511,7 +636,7 @@ void JoystickTick()
 	}
 }
 
-enum displayStates{Init1, Init2, Init3} displayState;
+enum displayStates{Init1, Init2, Init3, Init4} displayState;
 void DisplayTick(){
 	static unsigned char i = 0;
 	
@@ -528,6 +653,13 @@ void DisplayTick(){
 		break;
 		
 		case Init3:
+		displayState = Init4;
+		break;
+		
+		case Init4:
+		if(i<=6)
+		displayState = Init4;
+		else
 		displayState = Init1;
 		break;
 	}
@@ -541,7 +673,27 @@ void DisplayTick(){
 		break;
 		
 		case Init2:
-		while(fruits[i].available){
+			while(fruits[i].available){
+				i++;
+				if(i >= 6){
+			 		break;
+				 }
+			}
+			UnlightLED();
+			UnlightLEDred();
+			LightBlock(fruits[i].x1, fruits[i].y1);
+			i++;
+		 break;
+		
+		case Init3:
+		UnlightLED();
+		UnlightLEDred();
+		LightLEDred(8,1);
+		i = 0;
+		break;
+		
+		case Init4:
+		while(bombs[i].available){
 			i++;
 			if(i >= 6){
 				break;
@@ -549,14 +701,8 @@ void DisplayTick(){
 		}
 		UnlightLED();
 		UnlightLEDred();
-		LightBlock(fruits[i].x1, fruits[i].y1);
+		LightBlockred(bombs[i].x1, bombs[i].y1);
 		i++;
-		break;
-		
-		case Init3:
-		UnlightLED();
-		UnlightLEDred();
-		LightLEDred(8,1);
 		break;
 	}
 }
@@ -567,71 +713,72 @@ void ButtonTick(){
 
 	switch(buttonstate){
 		case ButtonOff:
-			if(bladeX == 8 && bladeY == 1){
-				buttonstate = ButtonWait1;
-				i = 0;
-			}
-			else{
-				buttonstate = ButtonOff;
-			}
-			break;
+		if(bladeX == 8 && bladeY == 1){
+			buttonstate = ButtonWait1;
+			i = 0;
+		}
+		else{
+			buttonstate = ButtonOff;
+		}
+		break;
 		
 		case ButtonWait1:
-			if(i >= 30){
-				buttonstate = ButtonOn;
-				lost = 0;
-			}
-			else if(bladeX == 8 && bladeY == 1){
-				buttonstate = ButtonWait1;
-			}
-			else{
-				buttonstate = ButtonOff;
-			}
-			break;
-			
+		if(i >= 30){
+			buttonstate = ButtonOn;
+			lost = 0;
+			bomblost = 0;
+		}
+		else if(bladeX == 8 && bladeY == 1){
+			buttonstate = ButtonWait1;
+		}
+		else{
+			buttonstate = ButtonOff;
+		}
+		break;
+		
 		case ButtonOn:
-			if(lost)
-			{
-				buttonstate = ButtonOff;
-			}
-			else if(bladeX == 8 && bladeY == 1){
-				i = 0;
-				buttonstate = ButtonWait2;
-			}
-			else{
-				buttonstate = ButtonOn;
-			}
-			break;
-			
+		if(lost || bomblost)
+		{
+			buttonstate = ButtonOff;
+		}
+		else if(bladeX == 8 && bladeY == 1){
+			i = 0;
+			buttonstate = ButtonWait2;
+		}
+		else{
+			buttonstate = ButtonOn;
+		}
+		break;
+		
 		case ButtonWait2:
-			if(i >= 30){
-				buttonstate = ButtonOff;
-			}
-			else if(bladeX == 8 && bladeY == 1){
-				buttonstate = ButtonWait2;
-			}
-			else{
+		if(i >= 30){
+			buttonstate = ButtonOff;
+		}
+		else if(bladeX == 8 && bladeY == 1){
+			buttonstate = ButtonWait2;
+		}
+		else{
 
-				buttonstate = ButtonOn;
-			}
-			break;
+			buttonstate = ButtonOn;
+		}
+		break;
 	}
 
 	switch(buttonstate){
 		case ButtonOff:
-			ButtonState = 0;
-			ButtonState1 = 1;
-			break;
+		ButtonState = 0;
+		ButtonState1 = 1;
+		break;
 		case ButtonWait1:
-			i++;
-			break;
+		i++;
+		break;
 		case ButtonOn:
-			ButtonState = 1;
-			ButtonState1 = 0;
-			break;
-		case ButtonWait2:	
-			i++;
-			break;
+		ButtonState = 1;
+		ButtonState1 = 0;
+		break;
+		case ButtonWait2:
+		i++;
+		break;
 	}
 };
 
@@ -641,7 +788,6 @@ void LCDTick(){
 	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Score:       X");
 	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("Score:       XX");
 	const unsigned char* string3 = reinterpret_cast<const unsigned char *>("Score:       XXX");
-	const unsigned char* string4 = reinterpret_cast<const unsigned char *>("YOU LSOT BITCH ");
 	
 	switch(LCDState){
 		case Nothing:
@@ -714,6 +860,7 @@ int main(void)
 	BlockState = Update;
 	LCDState = Nothing;
 	buttonstate = ButtonOff;
+	BombState = WaitBomb;
 	
 	unsigned long elapsedTime1 = 1;
 	unsigned long elapsedTime2 = 100;
@@ -722,6 +869,7 @@ int main(void)
 	unsigned long elapsedTime5 = 100;
 	unsigned long elapsedTime6 = 250;
 	unsigned long elapsedTime7 = 100;
+	unsigned long elapsedTime8 = 100;
 	
 	while(1)
 	{
@@ -755,6 +903,10 @@ int main(void)
 				LCDTick();
 				elapsedTime6 = 0;
 			}
+			if(elapsedTime8 >= 100){
+				BombTick();
+				elapsedTime8 = 0;
+			}
 		}
 
 		
@@ -769,5 +921,6 @@ int main(void)
 		elapsedTime5 = elapsedTime5 + systemPeriod;
 		elapsedTime6 = elapsedTime6 + systemPeriod;
 		elapsedTime7 = elapsedTime7 + systemPeriod;
+		elapsedTime8 = elapsedTime8 + systemPeriod;
 	}
 }
