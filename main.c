@@ -19,6 +19,8 @@ unsigned char start = 0;
 unsigned char ButtonState;
 unsigned char ButtonState1;
 
+unsigned char lastpush;
+
 
 
 uint16_t  x = 0;
@@ -539,7 +541,7 @@ void FruitTick(){
 
 enum GameStates{WaitStart, Gameon, SetSeed, LoseScreen} gamestate;
 void StartTick(){
-	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Red Dot To Begin");
+	const unsigned char* string1 = reinterpret_cast<const unsigned char *>("Go 2 Red");
 	const unsigned char* string2 = reinterpret_cast<const unsigned char *>("You Lost xD");
 	static unsigned char j = 0;
 	static unsigned char i = 0;
@@ -576,10 +578,13 @@ void StartTick(){
 		break;
 		
 		case LoseScreen:
-			if(j <= 10)
+			if(j <= 10){
 				gamestate = LoseScreen;
-			else
+			}
+			else{
+				set_PWM(0);
 				gamestate = WaitStart;
+			}
 			break;
 		
 		default:
@@ -589,7 +594,6 @@ void StartTick(){
 	switch(gamestate){
 		case WaitStart:
 		j = 0;
-		set_PWM(0);
 		LCD_ClearScreen();
 		LCD_DisplayString(1, string1);
 		ClearFruitBomb();
@@ -728,12 +732,13 @@ void DisplayTick(){
 enum ButtonStates{ButtonOff, ButtonWait1, ButtonOn, ButtonWait2} buttonstate;
 void ButtonTick(){
 	static unsigned char i = 0;
+	static unsigned char j = 0;
 
 	switch(buttonstate){
 		case ButtonOff:
 		if(bladeX == 8 && bladeY == 1){
-			buttonstate = ButtonWait1;
 			i = 0;
+			buttonstate = ButtonWait1;
 		}
 		else{
 			buttonstate = ButtonOff;
@@ -742,6 +747,7 @@ void ButtonTick(){
 		
 		case ButtonWait1:
 		if(i >= 30){
+			j = 0;
 			buttonstate = ButtonOn;
 			lost = 0;
 			bomblost = 0;
@@ -750,6 +756,7 @@ void ButtonTick(){
 			buttonstate = ButtonWait1;
 		}
 		else{
+			set_PWM(0);
 			buttonstate = ButtonOff;
 		}
 		break;
@@ -757,10 +764,12 @@ void ButtonTick(){
 		case ButtonOn:
 		if(lost || bomblost)
 		{
+			//j = 0;
 			buttonstate = ButtonOff;
 		}
 		else if(bladeX == 8 && bladeY == 1){
 			i = 0;
+			//j = 0;
 			buttonstate = ButtonWait2;
 		}
 		else{
@@ -776,7 +785,6 @@ void ButtonTick(){
 			buttonstate = ButtonWait2;
 		}
 		else{
-
 			buttonstate = ButtonOn;
 		}
 		break;
@@ -788,9 +796,43 @@ void ButtonTick(){
 		ButtonState1 = 1;
 		break;
 		case ButtonWait1:
+		//set_PWM(0);
 		i++;
+		if(i <= 10){
+			LCD_Cursor(16);
+			LCD_WriteData('0' + 3);
+			if(i <= 5 && i > 0)	
+				set_PWM(400);
+			else
+				set_PWM(0);
+		}
+		else if(i <= 20){
+			LCD_Cursor(16);
+			LCD_WriteData('0' + 2);
+			if(i <= 15)
+				set_PWM(400);
+			else
+				set_PWM(0);
+		}
+		else if(i <= 30){
+			LCD_Cursor(16);
+			LCD_WriteData('0' + 1);
+			if(i <= 25)
+				set_PWM(400);
+			else
+				set_PWM(0);
+		}
+			
 		break;
 		case ButtonOn:
+		//j++;
+// 		if(j <= 5){
+// 			lastpush = 1;
+// 			set_PWM(600);
+// 		}
+// 		else{
+// 			set_PWM(0);
+// 		}
 		ButtonState = 1;
 		ButtonState1 = 0;
 		break;
