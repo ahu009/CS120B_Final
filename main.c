@@ -16,6 +16,7 @@ unsigned char lost = 0;
 unsigned char start = 0;
 
 unsigned char ButtonState;
+unsigned char ButtonState1;
 
 uint16_t  x = 0;
 uint16_t y = 0;
@@ -415,63 +416,61 @@ void StartTick(){
 	
 	switch(gamestate){
 		case WaitStart:
-			if(ButtonState)
-				gamestate = SetSeed;
-			else
-				gamestate = WaitStart;
-			break;
-			
+		if(ButtonState)
+		gamestate = SetSeed;
+		else
+		gamestate = WaitStart;
+		break;
+		
 		case SetSeed:
+		bladeX = 1;
+		bladeY = 1;
+		gamestate = Gameon;
+		break;
+		
+		case Gameon:
+		if(lost){
+			gamestate = WaitStart;
 			bladeX = 1;
 			bladeY = 1;
-			gamestate = Gameon;
-			break;
-			
-		case Gameon:
-			if(lost){
-				gamestate = WaitStart;
-				bladeX = 1;
-				bladeY = 1;
-			}
-			else if(!ButtonState){
-				gamestate = WaitStart;
-				bladeX = 1;
-				bladeY = 1;
-			}
-			else{
-				gamestate = Gameon;
-			}
-			break;
-			
-		default:
+		}
+		else if(ButtonState1){
 			gamestate = WaitStart;
-			break;
+			bladeX = 1;
+			bladeY = 1;
+		}
+		else{
+			gamestate = Gameon;
+		}
+		break;
+		
+		default:
+		//gamestate = WaitStart;
+		break;
 	}
 	
 	switch(gamestate){
 		case WaitStart:
-			//Add Reset Shit as you go
-			LCD_ClearScreen();
-			LCD_DisplayString(1, string1);
-			ClearFruit();
-			HangGame = 1;
-			UnlightLED();
-			UnlightLEDred();
-			lost = 0;
-			start = 0;
-			score = 0;
-			misses = 0;
-			i++;
-			break;
+		//Add Reset Shit as you go
+		LCD_ClearScreen();
+		LCD_DisplayString(1, string1);
+		ClearFruit();
+		HangGame = 1;
+		UnlightLED();
+		UnlightLEDred();
+		start = 0;
+		score = 0;
+		misses = 0;
+		i++;
+		break;
 		case Gameon:
-			lost = 0;
-			i = 0;
-			start = 1;
-			HangGame = 0;
-			break;
+		i = 0;
+		start = 1;
+		HangGame = 0;
+		break;
 		case SetSeed:
-			srand(i);
-			break;
+		srand(i);
+		break;
 	}
 }
 
@@ -515,7 +514,6 @@ void JoystickTick()
 enum displayStates{Init1, Init2, Init3} displayState;
 void DisplayTick(){
 	static unsigned char i = 0;
-	//static unsigned char j = 0;
 	
 	switch(displayState){
 		case Init1:
@@ -556,9 +554,9 @@ void DisplayTick(){
 		break;
 		
 		case Init3:
-			UnlightLED();
-			UnlightLEDred();
-			LightLEDred(8,1);
+		UnlightLED();
+		UnlightLEDred();
+		LightLEDred(8,1);
 		break;
 	}
 }
@@ -577,11 +575,11 @@ void ButtonTick(){
 				buttonstate = ButtonOff;
 			}
 			break;
-			
+		
 		case ButtonWait1:
 			if(i >= 30){
-				//ButtonState = 1;
 				buttonstate = ButtonOn;
+				lost = 0;
 			}
 			else if(bladeX == 8 && bladeY == 1){
 				buttonstate = ButtonWait1;
@@ -590,8 +588,13 @@ void ButtonTick(){
 				buttonstate = ButtonOff;
 			}
 			break;
+			
 		case ButtonOn:
-			if(bladeX == 8 && bladeY == 1){
+			if(lost)
+			{
+				buttonstate = ButtonOff;
+			}
+			else if(bladeX == 8 && bladeY == 1){
 				i = 0;
 				buttonstate = ButtonWait2;
 			}
@@ -599,15 +602,16 @@ void ButtonTick(){
 				buttonstate = ButtonOn;
 			}
 			break;
+			
 		case ButtonWait2:
 			if(i >= 30){
-				//ButtonState = 1;
 				buttonstate = ButtonOff;
 			}
 			else if(bladeX == 8 && bladeY == 1){
 				buttonstate = ButtonWait2;
 			}
 			else{
+
 				buttonstate = ButtonOn;
 			}
 			break;
@@ -616,20 +620,19 @@ void ButtonTick(){
 	switch(buttonstate){
 		case ButtonOff:
 			ButtonState = 0;
+			ButtonState1 = 1;
 			break;
 		case ButtonWait1:
 			i++;
 			break;
 		case ButtonOn:
-			if(lost)
-				ButtonState = 0;
-			else
-				ButtonState = 1;
+			ButtonState = 1;
+			ButtonState1 = 0;
 			break;
-		case ButtonWait2:
+		case ButtonWait2:	
 			i++;
 			break;
-	}	
+	}
 };
 
 enum LCDStates{DisplayScore, Lose, Nothing} LCDState;
@@ -722,11 +725,11 @@ int main(void)
 	
 	while(1)
 	{
-		if(elapsedTime3 >= 150){
+		if(elapsedTime3 >= 200){
 			StartTick();
 			elapsedTime3 = 0;
 		}
-		if(elapsedTime1 >= 1){
+		if(elapsedTime1 >= 2){
 			DisplayTick();
 			elapsedTime1 = 0;
 		}
