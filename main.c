@@ -570,13 +570,11 @@ void StartTick(){
 		break;
 		
 		default:
-		//gamestate = WaitStart;
 		break;
 	}
 	
 	switch(gamestate){
 		case WaitStart:
-		//Add Reset Shit as you go
 		LCD_ClearScreen();
 		LCD_DisplayString(1, string1);
 		ClearFruitBomb();
