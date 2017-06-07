@@ -344,7 +344,6 @@ void ClearFruitBomb(){
 	return;
 }
 
-//IMPORTANT: ADD DIFFERENT PATTERNS LATER
 void UpdateFruit(fruit &Fruit){
 	if(Fruit.available)
 	return;
@@ -401,7 +400,6 @@ void FilterBomb(){
 	return;
 }
 
-//IMPORTANT: Change later to increase speed
 enum BlockStates{Update, WaitBlock} BlockState;
 void BlockUpdateTick(){
 	static signed char i = 10;
@@ -825,14 +823,7 @@ void ButtonTick(){
 			
 		break;
 		case ButtonOn:
-		//j++;
-// 		if(j <= 5){
-// 			lastpush = 1;
-// 			set_PWM(600);
-// 		}
-// 		else{
-// 			set_PWM(0);
-// 		}
+
 		ButtonState = 1;
 		ButtonState1 = 0;
 		break;
