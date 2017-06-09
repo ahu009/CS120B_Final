@@ -1,5 +1,4 @@
-3. Implement random patterns (Bounce off walls) << 
-5. Finish Buzzer << 
-6. Finish Lose Screen + Count Down Screen << 
-7. Make it it so that you dont get fucking seziures everytime you play. 
-8. Polish
+LED Fruit Ninja Clone.
+
+Documentation:
+https://docs.google.com/document/d/1EK9DoGh9cVDmynbqxxzjQ2miA0Fb_QsKaNWsEwDvjcQ/edit#
